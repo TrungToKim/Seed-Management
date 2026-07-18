@@ -1,0 +1,25 @@
+# Môi trường ảo
+venv/
+.venv/
+env/
+
+# Biến môi trường
+.env
+.env.*
+!.env.example
+
+# Cache và Python files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDEs và OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
