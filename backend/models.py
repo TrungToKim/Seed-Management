@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import relationship
-from pgvector.sqlalchemy import vector
+from pgvector.sqlalchemy import Vector
 from database import Base
 
 class Plant(Base):
@@ -48,6 +48,7 @@ class PlantDetail(Base):
 class VectorChunk(Base):
     __tablename__ = "vector_chunks"
     id = Column(Integer, primary_key=True,index=True)
-    plant_detail_id = Column(Integer, ForeignKey("plant_detail_id"))
-    chucnk_text = Column(Text)
-    embedding_vector = Column(vector(1536))
+    plant_detail_id = Column(Integer, ForeignKey("plant_details.id"))
+    chunk_text = Column(Text)
+    embedding_vector = Column(Vector(768))
+    plant_detail = relationship("PlantDetail", back_populates="vector_chunks")
