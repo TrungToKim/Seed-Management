@@ -1,18 +1,23 @@
-import { useEffect, useState } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Layout from "./components/Layout";
+import Home from "./pages/Home";
+import PlantPage from "./pages/Plant";
+import Admin from "./pages/Admin";
+import Chat from "./pages/Chat";
+import "./App.css";
 
 export default function App() {
-  const [data, setData] = useState(null);
-  useEffect(() => {
-    fetch("http://127.0.0.1:8000/api/data")
-      .then((res) => res.json())
-      .then((data) => setData(data));
-  }, []);
   return (
-    <>
-      <div>
-        <h1>Test api backend</h1>
-        <pre>{JSON.stringify(data, null, 2)}</pre>
-      </div>
-    </>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/plants" element={<PlantPage />} />
+          <Route path="/plants/:id" element={<PlantPage />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/chat" element={<Chat />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   );
 }

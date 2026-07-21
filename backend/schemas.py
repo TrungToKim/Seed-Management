@@ -1,5 +1,14 @@
 from pydantic import BaseModel
 from typing import List, Optional
+
+class ChatRequest(BaseModel):
+    query: str
+
+class ChatResponse(BaseModel):
+    status: str
+    answer: str
+    sources: List[str] = []
+
 class TagResponse(BaseModel):
     id:int
     category: str
