@@ -1,75 +1,47 @@
-# React + TypeScript + Vite
+# Frontend - Quản Lý Cây Thuốc
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + TypeScript + Vite 8 frontend cho hệ thống quản lý cây thuốc.
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Cấu trúc
 
 ```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+frontend/
+├── src/
+│   ├── main.tsx              # Entry point
+│   ├── App.tsx                # Router setup
+│   ├── App.css                # Global styles
+│   ├── components/
+│   │   ├── Layout.tsx         # Layout chung (nav, footer)
+│   │   └── Chatbox.tsx        # Chat AI component
+│   ├── pages/
+│   │   ├── Home.tsx           # Trang chủ
+│   │   ├── Plant.tsx          # Danh sách & chi tiết cây thuốc
+│   │   ├── Admin.tsx          # Quản trị (CRUD)
+│   │   └── Chat.tsx           # Trang chat AI
+│   └── assets/                # Hình ảnh, icons
+├── index.html
+├── vite.config.ts             # Proxy /api → localhost:8000
+└── package.json
 ```
+
+## Chạy
+
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm run build    # Production build → dist/
+```
+
+## Các trang
+
+| Route | Trang | Mô tả |
+|-------|-------|-------|
+| / | Home | Trang chủ giới thiệu |
+| /plants | Plant | Danh sách & tìm kiếm cây thuốc |
+| /plants/:id | Plant | Chi tiết cây thuốc |
+| /admin | Admin | CRUD quản trị |
+| /chat | Chat | Hỏi đáp với AI |
+
+## Proxy
+
+Vite proxy cấu hình trong `vite.config.ts`: tất cả request `/api/*` được chuyển tiếp đến `http://localhost:8000`.

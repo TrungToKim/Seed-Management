@@ -32,23 +32,52 @@ export default function Admin() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [toast, setToast] = useState<{ message: string; type: string } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: string } | null>(
+    null,
+  );
 
   const showToast = (message: string, type: string) => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  const fetchPlants = () => {
+  // Thêm tham số signal (không bắt buộc) để dùng với AbortController
+  const fetchPlants = async (signal?: AbortSignal) => {
     setLoading(true);
-    fetch("/api/plants?page_size=100")
-      .then((res) => res.json())
-      .then((data) => setPlants(data.items))
-      .catch(() => showToast("Không thể tải danh sách", "error"))
-      .finally(() => setLoading(false));
+    try {
+      // Truyền signal vào options của fetch
+      const res = await fetch("/api/plants?page_size=100", { signal });
+
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+
+      const data = await res.json();
+      setPlants(data.items);
+    } catch (error: any) {
+      // Nếu lỗi là do chủ động hủy request thì bỏ qua
+      if (error.name === "AbortError") {
+        return;
+      }
+      console.error("Lỗi fetch plants:", error);
+      showToast("Không thể tải danh sách", "error");
+    } finally {
+      // Chỉ tắt loading nếu request không bị huỷ
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
+    }
   };
 
-  useEffect(() => { fetchPlants(); }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+
+    // Gọi API với signal từ controller
+    fetchPlants(controller.signal);
+
+    // Dọn dẹp request khi component unmount
+    return () => {
+      controller.abort();
+    };
+  }, []);
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -81,8 +110,12 @@ export default function Admin() {
         body: JSON.stringify(form),
       });
       if (!res.ok) throw new Error("Failed");
-      showToast(editingId ? "Cập nhật thành công" : "Thêm mới thành công", "success");
+      showToast(
+        editingId ? "Cập nhật thành công" : "Thêm mới thành công",
+        "success",
+      );
       setShowForm(false);
+      // Gọi lại fetchPlants không cần signal vì đây là request chủ động của user
       fetchPlants();
     } catch {
       showToast("Có lỗi xảy ra", "error");
@@ -95,6 +128,7 @@ export default function Admin() {
       const res = await fetch(`/api/plants/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed");
       showToast("Xoá thành công", "success");
+      // Gọi lại fetchPlants không cần signal
       fetchPlants();
     } catch {
       showToast("Có lỗi xảy ra", "error");
@@ -103,7 +137,9 @@ export default function Admin() {
 
   return (
     <div className="container" style={{ paddingTop: 32, paddingBottom: 32 }}>
-      <h1 className="section-title" style={{ marginBottom: 24 }}>Quản Trị Cây Thuốc</h1>
+      <h1 className="section-title" style={{ marginBottom: 24 }}>
+        Quản Trị Cây Thuốc
+      </h1>
 
       <div className="admin-layout">
         <div className="admin-sidebar">
@@ -114,38 +150,79 @@ export default function Admin() {
         <div className="admin-content">
           {showForm && (
             <div className="modal-overlay" onClick={() => setShowForm(false)}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <h2>{editingId ? "Chỉnh Sửa Cây Thuốc" : "Thêm Cây Thuốc Mới"}</h2>
+              <div
+                className="modal-content"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2>
+                  {editingId ? "Chỉnh Sửa Cây Thuốc" : "Thêm Cây Thuốc Mới"}
+                </h2>
                 <form onSubmit={handleSubmit}>
                   <div className="form-group">
                     <label>Tên thường gọi *</label>
-                    <input required value={form.common_name} onChange={(e) => setForm({ ...form, common_name: e.target.value })} />
+                    <input
+                      required
+                      value={form.common_name}
+                      onChange={(e) =>
+                        setForm({ ...form, common_name: e.target.value })
+                      }
+                    />
                   </div>
                   <div className="form-group">
                     <label>Tên khoa học</label>
-                    <input value={form.scientific_name} onChange={(e) => setForm({ ...form, scientific_name: e.target.value })} />
+                    <input
+                      value={form.scientific_name}
+                      onChange={(e) =>
+                        setForm({ ...form, scientific_name: e.target.value })
+                      }
+                    />
                   </div>
                   <div className="form-group">
                     <label>Họ</label>
-                    <input value={form.family} onChange={(e) => setForm({ ...form, family: e.target.value })} />
+                    <input
+                      value={form.family}
+                      onChange={(e) =>
+                        setForm({ ...form, family: e.target.value })
+                      }
+                    />
                   </div>
                   <div className="form-group">
                     <label>Khu vực</label>
-                    <input value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} />
+                    <input
+                      value={form.region}
+                      onChange={(e) =>
+                        setForm({ ...form, region: e.target.value })
+                      }
+                    />
                   </div>
                   <div className="form-group">
                     <label>URL Hình ảnh</label>
-                    <input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} />
+                    <input
+                      value={form.image_url}
+                      onChange={(e) =>
+                        setForm({ ...form, image_url: e.target.value })
+                      }
+                    />
                   </div>
                   <div className="form-group">
                     <label>Mô tả</label>
-                    <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                    <textarea
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
+                    />
                   </div>
                   <div className="form-actions">
                     <button type="submit" className="btn btn-primary">
                       {editingId ? "Cập Nhật" : "Thêm Mới"}
                     </button>
-                    <button type="button" className="btn" style={{ background: "#eee" }} onClick={() => setShowForm(false)}>
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ background: "#eee" }}
+                      onClick={() => setShowForm(false)}
+                    >
                       Huỷ
                     </button>
                   </div>
@@ -178,8 +255,18 @@ export default function Admin() {
                     <td>{plant.region || "-"}</td>
                     <td>
                       <div className="admin-actions">
-                        <button className="btn btn-edit" onClick={() => openEdit(plant)}>Sửa</button>
-                        <button className="btn btn-delete" onClick={() => handleDelete(plant.id)}>Xoá</button>
+                        <button
+                          className="btn btn-edit"
+                          onClick={() => openEdit(plant)}
+                        >
+                          Sửa
+                        </button>
+                        <button
+                          className="btn btn-delete"
+                          onClick={() => handleDelete(plant.id)}
+                        >
+                          Xoá
+                        </button>
                       </div>
                     </td>
                   </tr>
