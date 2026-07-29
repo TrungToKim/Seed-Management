@@ -65,7 +65,7 @@ def init_db():
         for table in tables_to_create:
             try:
                 table.create(bind=eng, checkfirst=True)
-            except Exception:
+            except Exception as ex:
                 print(f"LỖI TẠO BẢNG {table.name}: {ex}")
 
 class Plant(Base):
