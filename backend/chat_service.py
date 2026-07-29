@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_postgres import PGVector
 from langchain_classic.chains import RetrievalQA
@@ -40,11 +40,7 @@ PROMPT = PromptTemplate(
 
 def get_qa_chain():
     try:
-        # Gọi Embeddings qua API của HuggingFace, SERVER RENDER KHÔNG CẦN CHẠY MODEL
-        embeddings = HuggingFaceInferenceAPIEmbeddings(
-            api_key=os.getenv("HUGGINGFACEHUB_API_TOKEN"),
-            model_name="keepitreal/vietnamese-sbert"
-        )
+        embeddings = HuggingFaceEmbeddings(model_name="keepitreal/vietnamese-sbert")
 
         vectorstore = PGVector(
             collection_name="vpbank_docs",
@@ -53,10 +49,10 @@ def get_qa_chain():
             use_jsonb=True,
         )
 
-        retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 25})
 
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
+            model="gemini-3.1-flash-lite",
             google_api_key=os.getenv("GOOGLE_API_KEY"),
             temperature=0,
         )
@@ -72,3 +68,26 @@ def get_qa_chain():
     except Exception as e:
         print(f"Warning: Could not initialize QA chain: {e}")
         return None
+
+if __name__ == "__main__":
+    qa_chain = get_qa_chain()
+    if qa_chain is None:
+        print("QA chain could not be initialized. Exiting.")
+        exit(1)
+
+    while True:
+        user_query = input("\nBan hoi (hoac go 'exit' de thoat): ")
+        if user_query.lower() == 'exit':
+            break
+
+        result = qa_chain.invoke({"query": user_query})
+        answer = result["result"]
+        if "Cam bao" not in answer and "Cảnh báo" not in answer:
+            answer += MEDICAL_WARNING
+
+        print("\n=> TRA LOI:")
+        print(answer)
+
+        print("\n=> NGUON THAM KHAO:")
+        for doc in result["source_documents"]:
+            print(f"- {doc.metadata.get('source')} (Trang {doc.metadata.get('page')})")
