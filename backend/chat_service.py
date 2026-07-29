@@ -38,9 +38,25 @@ PROMPT = PromptTemplate(
     input_variables=["context", "question"],
 )
 
+# Biến toàn cục dùng để lưu cache mô hình embeddings
+_embeddings_instance = None
+
+def get_embeddings():
+    """Tối ưu bằng Lazy Loading: Chỉ tải model khi cần thiết"""
+    global _embeddings_instance
+    if _embeddings_instance is None:
+        print("--> Đang khởi tạo mô hình vietnamese-sbert...")
+        _embeddings_instance = HuggingFaceEmbeddings(
+            model_name="keepitreal/vietnamese-sbert",
+            model_kwargs={'device': 'cpu'},
+            encode_kwargs={'normalize_embeddings': True}
+        )
+    return _embeddings_instance
+
 def get_qa_chain():
     try:
-        embeddings = HuggingFaceEmbeddings(model_name="keepitreal/vietnamese-sbert")
+        # Sử dụng hàm Lazy Loading thay vì khởi tạo trực tiếp
+        embeddings = get_embeddings()
 
         vectorstore = PGVector(
             collection_name="vpbank_docs",
@@ -49,10 +65,11 @@ def get_qa_chain():
             use_jsonb=True,
         )
 
-        retriever = vectorstore.as_retriever(search_kwargs={"k": 25})
+        # Giảm k từ 25 xuống 4 để tránh quá tải token và RAM
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
         llm = ChatGoogleGenerativeAI(
-            model="gemini-3.1-flash-lite",
+            model="gemini-2.5-flash", # Nên đổi sang model chính thức ổn định
             google_api_key=os.getenv("GOOGLE_API_KEY"),
             temperature=0,
         )
