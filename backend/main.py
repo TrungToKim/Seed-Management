@@ -16,9 +16,7 @@ qa_chain = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global qa_chain
     init_db()
-    qa_chain = get_qa_chain()
     yield
 
 app = FastAPI(
@@ -38,6 +36,9 @@ app.add_middleware(
 
 @app.post("/api/chat", response_model=ChatResponse)
 def post_chat(req: ChatRequest):
+    global qa_chain
+    if qa_chain is None:
+        qa_chain = get_qa_chain()
     if qa_chain is None:
         raise HTTPException(status_code=503, detail="Chat service is not available (vector DB not initialized)")
     try:
