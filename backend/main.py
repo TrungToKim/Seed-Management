@@ -6,7 +6,7 @@ from typing import Optional, List
 from contextlib import asynccontextmanager
 
 from database import (
-    init_db, get_db, Plant, Tag,
+    get_db, Plant, Tag,
     PlantResponse, PlantListResponse, PlantCreate,
     TagResponse, ChatRequest, ChatResponse,
 )
@@ -16,7 +16,6 @@ qa_chain = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
     yield
 
 app = FastAPI(
@@ -33,6 +32,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+def root():
+    return {"message": "Quan ly cay thuoc API", "docs": "/docs"}
 
 @app.post("/api/chat", response_model=ChatResponse)
 def post_chat(req: ChatRequest):

@@ -14,7 +14,7 @@ except ImportError:
 
 load_dotenv()
 
-SQLALCHEMY_URL = os.getenv("DB_URL")
+SQLALCHEMY_URL = os.getenv("DB_URL") or os.getenv("DATABASE_URL")
 if SQLALCHEMY_URL and SQLALCHEMY_URL.startswith("postgresql://"):
     SQLALCHEMY_URL = SQLALCHEMY_URL.replace("postgresql://", "postgresql+psycopg2://")
 
@@ -23,14 +23,20 @@ SessionLocal = None
 Base = declarative_base()
 
 
+_db_initialized = False
+
 def get_engine():
     global engine, SessionLocal
     if engine is None and SQLALCHEMY_URL:
-        engine = create_engine(SQLALCHEMY_URL)
+        engine = create_engine(SQLALCHEMY_URL, connect_args={"connect_timeout": 5})
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     return engine
 
 def get_db():
+    global _db_initialized
+    if not _db_initialized:
+        _db_initialized = True
+        init_db()
     eng = get_engine()
     if eng is None or SessionLocal is None:
         raise RuntimeError("Database not configured. Set DB_URL environment variable.")
