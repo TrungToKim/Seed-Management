@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiFetch } from "../api";
 
 export default function ChatBot() {
   const [query, setQuery] = useState("");
@@ -15,16 +16,10 @@ export default function ChatBot() {
     setSources([]);
 
     try {
-      // Gọi tới API FastAPI đang chạy ở localhost:8000
-      const response = await fetch("/api/chat", {
+      const data = await apiFetch<{ status: string; answer: string; sources: [] }>("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({ query: query }),
       });
-
-      const data = await response.json();
 
       if (data.status === "success") {
         setAnswer(data.answer); // Lưu câu trả lời để in ra

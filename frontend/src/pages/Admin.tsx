@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch, apiFetchRaw } from "../api";
 
 interface Tag {
   id: number;
@@ -41,26 +42,18 @@ export default function Admin() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Thêm tham số signal (không bắt buộc) để dùng với AbortController
   const fetchPlants = async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      // Truyền signal vào options của fetch
-      const res = await fetch("/api/plants?page_size=100", { signal });
-
+      const res = await apiFetchRaw("/api/plants?page_size=100", { signal });
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-
       const data = await res.json();
       setPlants(data.items);
     } catch (error: any) {
-      // Nếu lỗi là do chủ động hủy request thì bỏ qua
-      if (error.name === "AbortError") {
-        return;
-      }
+      if (error.name === "AbortError") return;
       console.error("Lỗi fetch plants:", error);
       showToast("Không thể tải danh sách", "error");
     } finally {
-      // Chỉ tắt loading nếu request không bị huỷ
       if (!signal?.aborted) {
         setLoading(false);
       }
@@ -104,7 +97,7 @@ export default function Admin() {
     const method = editingId ? "PUT" : "POST";
 
     try {
-      const res = await fetch(url, {
+      const res = await apiFetchRaw(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
@@ -115,7 +108,6 @@ export default function Admin() {
         "success",
       );
       setShowForm(false);
-      // Gọi lại fetchPlants không cần signal vì đây là request chủ động của user
       fetchPlants();
     } catch {
       showToast("Có lỗi xảy ra", "error");
@@ -125,10 +117,9 @@ export default function Admin() {
   const handleDelete = async (id: number) => {
     if (!confirm("Bạn có chắc chắn muốn xoá?")) return;
     try {
-      const res = await fetch(`/api/plants/${id}`, { method: "DELETE" });
+      const res = await apiFetchRaw(`/api/plants/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed");
       showToast("Xoá thành công", "success");
-      // Gọi lại fetchPlants không cần signal
       fetchPlants();
     } catch {
       showToast("Có lỗi xảy ra", "error");

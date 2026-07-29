@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { apiFetch, apiFetchRaw } from "../api";
 
 interface Tag {
   id: number;
@@ -38,8 +39,7 @@ function PlantList() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch("/api/tags")
-      .then((res) => res.json())
+    apiFetch<Tag[]>("/api/tags")
       .then(setTags)
       .catch(() => {});
   }, []);
@@ -50,8 +50,7 @@ function PlantList() {
     if (search) params.set("search", search);
     if (selectedTag) params.set("tag", selectedTag);
 
-    fetch(`/api/plants?${params}`)
-      .then((res) => res.json())
+    apiFetch<{ items: Plant[]; total: number }>(`/api/plants?${params}`)
       .then((data) => {
         setPlants(data.items);
         setTotal(data.total);
@@ -158,7 +157,7 @@ function PlantDetail() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/plants/${id}`)
+    apiFetchRaw(`/api/plants/${id}`)
       .then((res) => {
         if (!res.ok) throw new Error("Not found");
         return res.json();

@@ -13,11 +13,22 @@ SQLALCHEMY_URL = os.getenv("DB_URL")
 if SQLALCHEMY_URL and SQLALCHEMY_URL.startswith("postgresql://"):
     SQLALCHEMY_URL = SQLALCHEMY_URL.replace("postgresql://", "postgresql+psycopg2://")
 
-engine = create_engine(SQLALCHEMY_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+engine = None
+SessionLocal = None
 Base = declarative_base()
 
+
+def get_engine():
+    global engine, SessionLocal
+    if engine is None and SQLALCHEMY_URL:
+        engine = create_engine(SQLALCHEMY_URL)
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    return engine
+
 def get_db():
+    eng = get_engine()
+    if eng is None or SessionLocal is None:
+        raise RuntimeError("Database not configured. Set DB_URL environment variable.")
     db = SessionLocal()
     try:
         yield db
@@ -25,20 +36,24 @@ def get_db():
         db.close()
 
 def init_db():
+    eng = get_engine()
+    if eng is None:
+        print("Warning: DB_URL not set, skipping database initialization")
+        return
     try:
-        with engine.connect() as conn:
+        with eng.connect() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
             conn.commit()
     except Exception as e:
         print(f"Warning: Could not create vector extension: {e}")
     try:
-        Base.metadata.create_all(bind=engine)
+        Base.metadata.create_all(bind=eng)
     except Exception as e:
         print(f"Warning: Could not create all tables: {e}")
         tables_to_create = [t for name, t in Base.metadata.tables.items() if name != "vector_chunks"]
         for table in tables_to_create:
             try:
-                table.create(bind=engine, checkfirst=True)
+                table.create(bind=eng, checkfirst=True)
             except Exception:
                 pass
 

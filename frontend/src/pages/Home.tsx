@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../api";
 
 interface Tag {
   id: number;
@@ -24,8 +25,7 @@ export default function Home() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch("/api/plants?page_size=6")
-      .then((res) => res.json())
+    apiFetch<{ items: Plant[]; total: number }>("/api/plants?page_size=6")
       .then((data) => {
         setPlants(data.items);
         setTotal(data.total);
