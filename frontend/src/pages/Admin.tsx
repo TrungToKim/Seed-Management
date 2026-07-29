@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiFetch, apiFetchRaw } from "../api";
+import { apiFetchRaw } from "../api";
 
 interface Tag {
   id: number;
