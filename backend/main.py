@@ -34,6 +34,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def read_root():
+    return {"status": "ok", "message": "API is running"}
+
 @app.post("/api/chat", response_model=ChatResponse)
 def post_chat(req: ChatRequest):
     if qa_chain is None:
