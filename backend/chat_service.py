@@ -1,10 +1,5 @@
 import os
 from dotenv import load_dotenv
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_postgres import PGVector
-from langchain_classic.chains import RetrievalQA
-from langchain_core.prompts import PromptTemplate
 
 from database import SQLALCHEMY_URL
 
@@ -33,13 +28,14 @@ Ngữ cảnh:
 Câu hỏi: {question}
 Trả lời:"""
 
-PROMPT = PromptTemplate(
-    template=SYSTEM_PROMPT,
-    input_variables=["context", "question"],
-)
-
 def get_qa_chain():
     try:
+        from langchain_huggingface import HuggingFaceEmbeddings
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        from langchain_postgres import PGVector
+        from langchain_classic.chains import RetrievalQA
+        from langchain_core.prompts import PromptTemplate
+
         embeddings = HuggingFaceEmbeddings(model_name="keepitreal/vietnamese-sbert")
 
         vectorstore = PGVector(
@@ -57,12 +53,17 @@ def get_qa_chain():
             temperature=0,
         )
 
+        prompt = PromptTemplate(
+            template=SYSTEM_PROMPT,
+            input_variables=["context", "question"],
+        )
+
         qa = RetrievalQA.from_chain_type(
             llm=llm,
             chain_type="stuff",
             retriever=retriever,
             return_source_documents=True,
-            chain_type_kwargs={"prompt": PROMPT},
+            chain_type_kwargs={"prompt": prompt},
         )
         return qa
     except Exception as e:

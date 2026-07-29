@@ -3,9 +3,18 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, text, Column, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
-from pgvector.sqlalchemy import Vector
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
+
+try:
+    from pgvector.sqlalchemy import Vector as _Vector
+    Vector = _Vector
+except ImportError:
+    class Vector:
+        def __init__(self, dim):
+            self.dim = dim
+        def __repr__(self):
+            return f"Vector({self.dim})"
 
 load_dotenv()
 
