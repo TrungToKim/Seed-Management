@@ -7,14 +7,10 @@ from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
 try:
-    from pgvector.sqlalchemy import Vector as _Vector
-    Vector = _Vector
+    from pgvector.sqlalchemy import Vector
+    HAS_PGVECTOR = True
 except ImportError:
-    class Vector:
-        def __init__(self, dim):
-            self.dim = dim
-        def __repr__(self):
-            return f"Vector({self.dim})"
+    HAS_PGVECTOR = False
 
 load_dotenv()
 
@@ -98,15 +94,17 @@ class PlantDetail(Base):
     content = Column(Text)
     source_reference = Column(String(255))
     plant = relationship("Plant", back_populates="details")
-    vector_chunks = relationship("VectorChunk", back_populates="plant_detail")
 
-class VectorChunk(Base):
-    __tablename__ = "vector_chunks"
-    id = Column(Integer, primary_key=True, index=True)
-    plant_detail_id = Column(Integer, ForeignKey("plant_details.id"))
-    chunk_text = Column(Text)
-    embedding_vector = Column(Vector(768))
-    plant_detail = relationship("PlantDetail", back_populates="vector_chunks")
+if HAS_PGVECTOR:
+    PlantDetail.vector_chunks = relationship("VectorChunk", back_populates="plant_detail")
+
+    class VectorChunk(Base):
+        __tablename__ = "vector_chunks"
+        id = Column(Integer, primary_key=True, index=True)
+        plant_detail_id = Column(Integer, ForeignKey("plant_details.id"))
+        chunk_text = Column(Text)
+        embedding_vector = Column(Vector(768))
+        plant_detail = relationship("PlantDetail", back_populates="vector_chunks")
 
 class ChatRequest(BaseModel):
     query: str
