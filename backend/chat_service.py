@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_postgres import PGVector
 from langchain_classic.chains import RetrievalQA
@@ -38,25 +38,13 @@ PROMPT = PromptTemplate(
     input_variables=["context", "question"],
 )
 
-# Biến toàn cục dùng để lưu cache mô hình embeddings
-_embeddings_instance = None
-
-def get_embeddings():
-    """Tối ưu bằng Lazy Loading: Chỉ tải model khi cần thiết"""
-    global _embeddings_instance
-    if _embeddings_instance is None:
-        print("--> Đang khởi tạo mô hình vietnamese-sbert...")
-        _embeddings_instance = HuggingFaceEmbeddings(
-            model_name="keepitreal/vietnamese-sbert",
-            model_kwargs={'device': 'cpu'},
-            encode_kwargs={'normalize_embeddings': True}
-        )
-    return _embeddings_instance
-
 def get_qa_chain():
     try:
-        # Sử dụng hàm Lazy Loading thay vì khởi tạo trực tiếp
-        embeddings = get_embeddings()
+        # Gọi Embeddings qua API của HuggingFace, SERVER RENDER KHÔNG CẦN CHẠY MODEL
+        embeddings = HuggingFaceInferenceAPIEmbeddings(
+            api_key=os.getenv("HUGGINGFACEHUB_API_TOKEN"),
+            model_name="keepitreal/vietnamese-sbert"
+        )
 
         vectorstore = PGVector(
             collection_name="vpbank_docs",
@@ -65,11 +53,10 @@ def get_qa_chain():
             use_jsonb=True,
         )
 
-        # Giảm k từ 25 xuống 4 để tránh quá tải token và RAM
         retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash", # Nên đổi sang model chính thức ổn định
+            model="gemini-2.5-flash",
             google_api_key=os.getenv("GOOGLE_API_KEY"),
             temperature=0,
         )
@@ -85,26 +72,3 @@ def get_qa_chain():
     except Exception as e:
         print(f"Warning: Could not initialize QA chain: {e}")
         return None
-
-if __name__ == "__main__":
-    qa_chain = get_qa_chain()
-    if qa_chain is None:
-        print("QA chain could not be initialized. Exiting.")
-        exit(1)
-
-    while True:
-        user_query = input("\nBan hoi (hoac go 'exit' de thoat): ")
-        if user_query.lower() == 'exit':
-            break
-
-        result = qa_chain.invoke({"query": user_query})
-        answer = result["result"]
-        if "Cam bao" not in answer and "Cảnh báo" not in answer:
-            answer += MEDICAL_WARNING
-
-        print("\n=> TRA LOI:")
-        print(answer)
-
-        print("\n=> NGUON THAM KHAO:")
-        for doc in result["source_documents"]:
-            print(f"- {doc.metadata.get('source')} (Trang {doc.metadata.get('page')})")
