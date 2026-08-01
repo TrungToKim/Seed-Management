@@ -112,8 +112,13 @@ if HAS_PGVECTOR:
         embedding_vector = Column(Vector(768))
         plant_detail = relationship("PlantDetail", back_populates="vector_chunks")
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
 class ChatRequest(BaseModel):
     query: str
+    history: List[ChatMessage] = []
 
 class ChatResponse(BaseModel):
     status: str

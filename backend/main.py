@@ -45,7 +45,7 @@ def post_chat(req: ChatRequest):
     if qa_chain is None:
         raise HTTPException(status_code=503, detail="Chat service is not available (vector DB not initialized)")
     try:
-        result = qa_chain.invoke({"query": req.query})
+        result = qa_chain.invoke({"question": req.query, "history": req.history})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat service error: {str(e)}")
     sources = list(set(

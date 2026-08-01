@@ -71,9 +71,13 @@ export default function ChatBot() {
     setLoading(true);
 
     try {
+      const history = messages
+        .filter((m) => m.role !== "assistant" || m.sources.length > 0 || m.id !== "init")
+        .slice(-8)
+        .map((m) => ({ role: m.role, content: m.content }));
       const data = await apiFetch<{ status: string; answer: string; sources: string[] }>("/api/chat", {
         method: "POST",
-        body: JSON.stringify({ query: value }),
+        body: JSON.stringify({ query: value, history }),
       });
       const botMsg: Message = {
         id: `m${++idCounter.current}`,

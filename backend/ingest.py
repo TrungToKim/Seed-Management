@@ -4,9 +4,23 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_postgres import PGVector
 from langchain_core.documents import Document
+from transformers import AutoTokenizer
 from database import SQLALCHEMY_URL, get_db, init_db, Plant, PlantDetail
 
 COLLECTION_NAME = "vpbank_docs"
+
+CHUNK_SIZE = 500      # 250 ~ 500 token
+CHUNK_OVERLAP = 50    # 30 ~ 50 token
+
+EMBEDDING_MODEL = "keepitreal/vietnamese-sbert"
+
+_tokenizer = None
+
+def _token_len(text: str) -> int:
+    global _tokenizer
+    if _tokenizer is None:
+        _tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL)
+    return len(_tokenizer.tokenize(text))
 
 def ingest():
     print("1. Dang tai tai lieu PDF...")
@@ -38,13 +52,17 @@ def ingest():
 
     print(f"   Tong so tai lieu: {len(docs)}")
 
-    print("3. Dang cat nho van ban...")
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    print("3. Dang cat nho van ban (token-based)...")
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+        length_function=_token_len,
+    )
     chunks = splitter.split_documents(docs)
     print(f"   Tong so chunks: {len(chunks)}")
 
     print("4. Dang tao Vector va luu vao Database...")
-    embeddings = HuggingFaceEmbeddings(model_name="keepitreal/vietnamese-sbert")
+    embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
     PGVector.from_documents(
         documents=chunks,
