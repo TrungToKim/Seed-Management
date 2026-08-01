@@ -4,7 +4,6 @@ import Home from "./pages/Home";
 import PlantPage from "./pages/Plant";
 import Admin from "./pages/Admin";
 import Chat from "./pages/Chat";
-import "./App.css";
 
 export default function App() {
   return (
