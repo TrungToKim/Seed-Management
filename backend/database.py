@@ -71,11 +71,11 @@ def init_db():
 class Plant(Base):
     __tablename__ = "plants"
     id = Column(Integer, primary_key=True, index=True)
-    common_name = Column(String(100), index=True)
-    scientific_name = Column(String(100))
+    common_name = Column(String(255), index=True)
+    scientific_name = Column(String(255))
     family = Column(String(100))
     region = Column(String(100))
-    image_url = Column(String(256), nullable=True)
+    image_url = Column(String(2048), nullable=True)
     description = Column(Text)
     tags = relationship("Tag", secondary="plant_tags", back_populates="plants")
     details = relationship("PlantDetail", back_populates="plant")

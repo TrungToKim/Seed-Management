@@ -174,7 +174,7 @@ export default function Layout() {
             </span>
           </div>
           <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>
-            © {new Date().getFullYear()} Thực Vật Việt · Bảo vệ và gìn giữ thiên nhiên Việt Nam 🌿
+            © {new Date().getFullYear()} Thực Vật Việt · Gìn giữ và phát triển kho tàng cây thuốc Việt Nam 🌿
           </p>
           <div className="flex gap-6">
             {["Giới thiệu", "Liên hệ", "Điều khoản"].map((link) => (

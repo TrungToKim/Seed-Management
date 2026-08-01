@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiFetch } from "../api";
 import {
-  Leaf, ArrowRight, TreeDeciduous, Flower2,
-  Sprout, Search, Star, BookOpen, MessageCircle, Shield, Droplets, Sun,
+  ArrowRight, TreeDeciduous, Flower2,
+  Sprout, Search, BookOpen, MessageCircle, Shield, Droplets, Sun, Tag as TagIcon,
 } from "lucide-react";
 
 const FS = "'Playfair Display', Georgia, serif";
@@ -25,34 +25,37 @@ interface Plant {
   tags: Tag[];
 }
 
-const STATS = [
-  { value: "12,000+", label: "Loài cây", icon: TreeDeciduous, color: "#2d5a27" },
-  { value: "850+", label: "Cây dược liệu", icon: Leaf, color: "#7ab648" },
-  { value: "300+", label: "Cây hoa", icon: Flower2, color: "#c0392b" },
-  { value: "50,000+", label: "Người dùng", icon: Sprout, color: "#8b6914" },
-];
+const CATEGORY_ICON_MAP: Record<string, string> = {
+  "Thanh nhiệt, giải độc": "🔥",
+  "Bổ khí, dưỡng huyết": "🩸",
+  "Bổ can thận, mạnh gân cốt": "💪",
+  "Hóa đàm, chỉ khái": "🍃",
+  "Khu phong, trừ thấp": "💨",
+  "Hoạt huyết, tiêu thũng": "💧",
+};
 
-const CATEGORIES = [
-  { label: "Cây bóng mát", icon: "🌳", count: 248, color: "#eaf4e3", border: "#a8d48a" },
-  { label: "Cây hoa", icon: "🌸", count: 315, color: "#fdf0f0", border: "#f4a3a3" },
-  { label: "Cây dược liệu", icon: "🌿", count: 189, color: "#f0faf0", border: "#90d890" },
-  { label: "Cây ăn quả", icon: "🍃", count: 204, color: "#fffbea", border: "#f0c84a" },
-  { label: "Cây cảnh", icon: "🪴", count: 432, color: "#f0f4ff", border: "#9aabf4" },
-  { label: "Thủy sinh", icon: "💧", count: 97, color: "#e8f8ff", border: "#80cce8" },
-];
+const CATEGORY_COLOR_MAP: Record<string, { color: string; border: string }> = {
+  "Thanh nhiệt, giải độc": { color: "#fff1e6", border: "#f5b56b" },
+  "Bổ khí, dưỡng huyết": { color: "#fdeeee", border: "#e28a8a" },
+  "Bổ can thận, mạnh gân cốt": { color: "#eaf4e3", border: "#a8d48a" },
+  "Hóa đàm, chỉ khái": { color: "#f0faf0", border: "#90d890" },
+  "Khu phong, trừ thấp": { color: "#e8f4ff", border: "#8fbbe8" },
+  "Hoạt huyết, tiêu thũng": { color: "#e8f8ff", border: "#80cce8" },
+};
 
 const FEATURES = [
-  { icon: BookOpen, title: "Bách khoa thực vật", desc: "Cơ sở dữ liệu 12,000+ loài cây với mô tả chi tiết, hình ảnh, phân loại khoa học.", color: "#2d5a27" },
-  { icon: MessageCircle, title: "Chat AI chuyên gia", desc: "Hỏi đáp 24/7 với AI được huấn luyện từ hàng triệu tài liệu khoa học thực vật.", color: "#7ab648" },
+  { icon: BookOpen, title: "Bách khoa cây thuốc", desc: "Cơ sở dữ liệu các loài cây thuốc Việt Nam với mô tả chi tiết, hình ảnh và phân loại khoa học.", color: "#2d5a27" },
+  { icon: MessageCircle, title: "Chat AI chuyên gia", desc: "Hỏi đáp với AI tra cứu kho tài liệu cây thuốc đã được huấn luyện.", color: "#7ab648" },
   { icon: Shield, title: "Nhận diện cây độc", desc: "Cảnh báo các loài cây độc hại, nguy hiểm giúp bảo vệ gia đình và vật nuôi.", color: "#c0392b" },
-  { icon: Droplets, title: "Hướng dẫn chăm sóc", desc: "Lịch tưới nước, bón phân, ánh sáng phù hợp cho từng loại cây cụ thể.", color: "#2980b9" },
-  { icon: Sun, title: "Theo mùa vụ", desc: "Thông tin cây trồng theo mùa, thổ nhưỡng và vùng khí hậu Việt Nam.", color: "#e67e22" },
-  { icon: Search, title: "Tìm kiếm thông minh", desc: "Tìm kiếm theo tên, tên khoa học, công dụng hoặc đặc điểm hình dáng.", color: "#9b59b6" },
+  { icon: Droplets, title: "Hướng dẫn sử dụng", desc: "Công dụng, bài thuốc dân gian và cách sử dụng cho từng loại cây thuốc.", color: "#2980b9" },
+  { icon: Sun, title: "Phân bố vùng miền", desc: "Thông tin cây thuốc theo khu vực, thổ nhưỡng và khí hậu Việt Nam.", color: "#e67e22" },
+  { icon: Search, title: "Tìm kiếm thông minh", desc: "Tìm kiếm theo tên thường gọi, tên khoa học hoặc bộ phận sử dụng.", color: "#9b59b6" },
 ];
 
 export default function Home() {
   const [plants, setPlants] = useState<Plant[]>([]);
   const [total, setTotal] = useState(0);
+  const [tags, setTags] = useState<Tag[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -63,6 +66,21 @@ export default function Home() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    apiFetch<Tag[]>("/api/tags")
+      .then(setTags)
+      .catch(() => {});
+  }, []);
+
+  const categories = tags.map((tag) => [tag.tag_name, [tag.tag_name]] as const);
+
+  const stats = [
+    { value: total > 0 ? total.toLocaleString("vi-VN") + "+" : "—", label: "Loài cây thuốc", icon: TreeDeciduous, color: "#2d5a27" },
+    { value: tags.length > 0 ? String(tags.length) : "—", label: "Nhóm công dụng", icon: TagIcon, color: "#7ab648" },
+    { value: "1.000+", label: "Bài thuốc dân gian", icon: Flower2, color: "#c0392b" },
+    { value: "24/7", label: "Hỗ trợ AI", icon: Sprout, color: "#8b6914" },
+  ];
 
   return (
     <div className="overflow-hidden" style={{ background: "#f5f0e8" }}>
@@ -94,7 +112,7 @@ export default function Home() {
               style={{ background: "rgba(122,182,72,0.25)", border: "1px solid rgba(122,182,72,0.5)", color: "#c8f0a0" }}
             >
               <Sprout className="w-4 h-4" />
-              <span style={{ fontWeight: 600 }}>Bách khoa thực vật Việt Nam</span>
+              <span style={{ fontWeight: 600 }}>Bách khoa cây thuốc Việt Nam</span>
             </div>
             <h1
               style={{
@@ -106,13 +124,14 @@ export default function Home() {
                 marginBottom: 20,
               }}
             >
-              Khám phá thế giới{' '}
-              <span style={{ color: "#a8e06a", fontStyle: "italic" }}>cây xanh</span>{' '}
+              Khám phá kho tàng{' '}
+              <span style={{ color: "#a8e06a", fontStyle: "italic" }}>cây thuốc</span>{' '}
               Việt Nam
             </h1>
             <p style={{ color: "rgba(255,255,255,0.82)", fontSize: 17, lineHeight: 1.7, marginBottom: 32 }}>
-              Tra cứu hàng nghìn loài thực vật, học cách chăm sóc cây, nhận diện
-              cây độc và trò chuyện với AI chuyên gia thực vật học.
+              {total > 0
+                ? `Tra cứu ${total.toLocaleString("vi-VN")}+ loài cây thuốc, học cách sử dụng, nhận diện cây độc và trò chuyện với AI.`
+                : "Tra cứu các loài cây thuốc Việt Nam, học cách sử dụng, nhận diện cây độc và trò chuyện với AI."}
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
@@ -144,15 +163,13 @@ export default function Home() {
       {/* Stats bar */}
       <section style={{ background: "#2d5a27" }}>
         <div className="px-6 py-5 max-w-[1280px] mx-auto grid grid-cols-2 md:grid-cols-4 gap-4">
-          {STATS.map(({ value, label, icon: Icon }, i) => (
+          {stats.map(({ value, label, icon: Icon }) => (
             <div key={label} className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.12)" }}>
-                <Icon className="w-5 h-5 text-white" />
+                <Icon className="w-5 h-5 text-white" style={{ color: "rgba(255,255,255,0.9)" }} />
               </div>
               <div>
-                <p style={{ color: "#a8e06a", fontWeight: 800, fontSize: 20, lineHeight: 1 }}>
-                  {i === 0 && total > 0 ? total.toLocaleString("vi-VN") + "+" : value}
-                </p>
+                <p style={{ color: "#a8e06a", fontWeight: 800, fontSize: 20, lineHeight: 1 }}>{value}</p>
                 <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: 500 }}>{label}</p>
               </div>
             </div>
@@ -165,25 +182,36 @@ export default function Home() {
         <div className="text-center mb-10">
           <p className="text-sm uppercase tracking-widest mb-2" style={{ color: "#7ab648", fontWeight: 700 }}>Danh mục</p>
           <h2 style={{ fontFamily: FS, fontSize: "clamp(26px, 4vw, 38px)", color: "#1c2e14", fontWeight: 700 }}>
-            Khám phá theo loại cây
+            Khám phá theo công dụng
           </h2>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {CATEGORIES.map((cat) => (
-            <Link
-              key={cat.label}
-              to="/plants"
-              className="flex flex-col items-center gap-2 p-5 rounded-2xl no-underline transition-all group"
-              style={{ background: cat.color, border: `1.5px solid ${cat.border}` }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.1)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
-            >
-              <span style={{ fontSize: 32 }}>{cat.icon}</span>
-              <span style={{ color: "#1c2e14", fontWeight: 700, fontSize: 13, textAlign: "center" }}>{cat.label}</span>
-              <span style={{ color: "#7ab648", fontSize: 11, fontWeight: 600 }}>{cat.count} loài</span>
-            </Link>
-          ))}
-        </div>
+        {categories.length === 0 ? (
+          <div className="text-center py-10">
+            <p style={{ fontSize: 36 }}>🌿</p>
+            <p style={{ color: "#6b7c5e", fontSize: 15, marginTop: 8 }}>Đang tải danh mục...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {categories.map(([category, names]) => {
+              const meta = CATEGORY_COLOR_MAP[category] ?? { color: "#f0faf0", border: "#90d890" };
+              const icon = CATEGORY_ICON_MAP[category] ?? "🌿";
+              return (
+                <Link
+                  key={category}
+                  to={`/plants?tag=${encodeURIComponent(names[0])}`}
+                  className="flex flex-col items-center gap-2 p-5 rounded-2xl no-underline transition-all group"
+                  style={{ background: meta.color, border: `1.5px solid ${meta.border}` }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.1)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
+                >
+                  <span style={{ fontSize: 32 }}>{icon}</span>
+                  <span style={{ color: "#1c2e14", fontWeight: 700, fontSize: 13, textAlign: "center" }}>{category}</span>
+                  <span style={{ color: "#7ab648", fontSize: 11, fontWeight: 600 }}>Cây thuốc</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* Featured plants */}
@@ -193,7 +221,7 @@ export default function Home() {
             <div>
               <p className="text-sm uppercase tracking-widest mb-2" style={{ color: "#7ab648", fontWeight: 700 }}>Nổi bật</p>
               <h2 style={{ fontFamily: FS, fontSize: "clamp(24px, 3.5vw, 36px)", color: "#1c2e14", fontWeight: 700 }}>
-                Cây được yêu thích nhất
+                Cây thuốc mới nhất
               </h2>
             </div>
             <Link
@@ -210,7 +238,7 @@ export default function Home() {
           {plants.length === 0 ? (
             <div className="text-center py-16">
               <p style={{ fontSize: 40 }}>🌿</p>
-              <p style={{ color: "#6b7c5e", fontSize: 16, marginTop: 8 }}>Đang tải cây thuốc nổi bật...</p>
+              <p style={{ color: "#6b7c5e", fontSize: 16, marginTop: 8 }}>Đang tải cây thuốc...</p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -244,10 +272,6 @@ export default function Home() {
                         </span>
                       </div>
                     )}
-                    <div className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full" style={{ background: "rgba(0,0,0,0.5)" }}>
-                      <Star className="w-3 h-3" style={{ fill: "#f0c84a", color: "#f0c84a" }} />
-                      <span className="text-white text-xs font-bold">4.9</span>
-                    </div>
                   </div>
                   <div className="p-5">
                     <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "#7ab648", fontWeight: 600 }}>
@@ -261,6 +285,12 @@ export default function Home() {
                       <p className="text-sm leading-relaxed" style={{ color: "#5a6e52", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                         {plant.description}
                       </p>
+                    )}
+                    {plant.region && (
+                      <div className="mt-3 flex items-center gap-1.5 text-xs" style={{ color: "#3d5c35", fontWeight: 600 }}>
+                        <Sprout className="w-3.5 h-3.5" style={{ color: "#7ab648" }} />
+                        {plant.region}
+                      </div>
                     )}
                     <div className="mt-4 flex items-center gap-2">
                       <div className="flex-1 h-px" style={{ background: "#eaf0e4" }} />
@@ -279,7 +309,7 @@ export default function Home() {
         <div className="text-center mb-10">
           <p className="text-sm uppercase tracking-widest mb-2" style={{ color: "#7ab648", fontWeight: 700 }}>Tính năng</p>
           <h2 style={{ fontFamily: FS, fontSize: "clamp(24px, 3.5vw, 36px)", color: "#1c2e14", fontWeight: 700 }}>
-            Mọi thứ bạn cần về thực vật
+            Mọi thứ bạn cần về cây thuốc
           </h2>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -310,10 +340,10 @@ export default function Home() {
           <div className="relative">
             <p className="text-sm uppercase tracking-widest mb-3" style={{ color: "#a8e06a", fontWeight: 700 }}>🌿 Chat AI miễn phí</p>
             <h2 style={{ fontFamily: FS, fontSize: "clamp(24px, 3.5vw, 38px)", color: "#fff", fontWeight: 700, marginBottom: 12 }}>
-              Có thắc mắc về cây? Hỏi ngay AI!
+              Có thắc mắc về cây thuốc? Hỏi ngay AI!
             </h2>
             <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 16, marginBottom: 32 }}>
-              AI được huấn luyện từ hàng triệu tài liệu khoa học thực vật học. Trả lời 24/7.
+              AI tra cứu kho tài liệu cây thuốc Việt Nam. Trả lời 24/7.
             </p>
             <div className="flex justify-center">
               <Link

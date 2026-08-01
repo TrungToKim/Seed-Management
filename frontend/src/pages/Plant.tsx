@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch, apiFetchRaw } from "../api";
 import {
-  Search, Star, Wind, Filter, X, BookOpen, ChevronLeft, ChevronRight, ArrowLeft,
+  Search, Wind, Filter, X, BookOpen, ChevronLeft, ChevronRight, ArrowLeft,
 } from "lucide-react";
 
 const FS = "'Playfair Display', Georgia, serif";
@@ -66,10 +66,6 @@ function PlantCard({ plant, onClick }: { plant: Plant; onClick: () => void }) {
             </span>
           </div>
         )}
-        <div className="absolute bottom-3 right-3 flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: "rgba(0,0,0,0.55)" }}>
-          <Star className="w-3 h-3" style={{ fill: "#f0c84a", color: "#f0c84a" }} />
-          <span className="text-white text-xs font-bold">4.9</span>
-        </div>
       </div>
 
       <div className="p-4">
@@ -101,18 +97,26 @@ function PlantList() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [tags, setTags] = useState<Tag[]>([]);
-  const [selectedTag, setSelectedTag] = useState("");
   const [loading, setLoading] = useState(true);
   const [showFilter, setShowFilter] = useState(false);
   const pageSize = 12;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get("search") ?? "";
+  const selectedTag = searchParams.get("tag") ?? "";
 
   const updateSearch = (value: string) => {
     const next = new URLSearchParams(searchParams);
     if (value) next.set("search", value);
     else next.delete("search");
+    setSearchParams(next, { replace: true });
+    setPage(1);
+  };
+
+  const updateTag = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set("tag", value);
+    else next.delete("tag");
     setSearchParams(next, { replace: true });
     setPage(1);
   };
@@ -160,10 +164,10 @@ function PlantList() {
         </div>
 
         <div className="mb-6">
-          <p className="text-xs uppercase tracking-widest mb-3" style={{ color: "#7ab648", fontWeight: 700 }}>Loại cây</p>
+          <p className="text-xs uppercase tracking-widest mb-3" style={{ color: "#7ab648", fontWeight: 700 }}>Công dụng</p>
           <div className="space-y-1">
             <button
-              onClick={() => { setSelectedTag(""); setPage(1); setLoading(true); }}
+              onClick={() => { updateTag(""); setLoading(true); }}
               className="w-full text-left px-3 py-2 rounded-lg text-sm transition-all"
               style={{
                 background: selectedTag === "" ? "#2d5a27" : "transparent",
@@ -178,7 +182,7 @@ function PlantList() {
             {tags.map((tag) => (
               <button
                 key={tag.id}
-                onClick={() => { setSelectedTag(tag.tag_name); setPage(1); setLoading(true); }}
+                onClick={() => { updateTag(tag.tag_name); setLoading(true); }}
                 className="w-full text-left px-3 py-2 rounded-lg text-sm transition-all"
                 style={{
                   background: selectedTag === tag.tag_name ? "#2d5a27" : "transparent",
@@ -196,7 +200,7 @@ function PlantList() {
 
         {(selectedTag !== "") && (
           <button
-            onClick={() => setSelectedTag("")}
+            onClick={() => updateTag("")}
             className="text-xs flex items-center gap-1.5 py-2"
             style={{ color: "#c0392b", fontWeight: 600 }}
           >
@@ -215,7 +219,7 @@ function PlantList() {
                 Tra cứu cây
               </h1>
               <p style={{ color: "#6b7c5e", fontSize: 13 }}>
-                Tìm thấy <strong style={{ color: "#2d5a27" }}>{total}</strong> loài cây
+                Tìm thấy <strong style={{ color: "#2d5a27" }}>{total}</strong> loài cây thuốc
               </p>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -269,7 +273,7 @@ function PlantList() {
                 <p style={{ fontSize: 40 }}>🌿</p>
                 <p style={{ color: "#6b7c5e", fontSize: 16, marginTop: 8 }}>Không tìm thấy cây nào phù hợp.</p>
                 <button
-                  onClick={() => { updateSearch(""); setSelectedTag(""); setPage(1); setLoading(true); }}
+                  onClick={() => { updateSearch(""); updateTag(""); setLoading(true); }}
                   className="mt-4 px-4 py-2 rounded-xl text-sm"
                   style={{ background: "#2d5a27", color: "#fff", fontWeight: 600 }}
                 >
@@ -421,11 +425,12 @@ function PlantDetail() {
               </div>
             )}
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 px-3 py-1.5 rounded-full" style={{ background: "#fffbea" }}>
-                <Star className="w-4 h-4" style={{ fill: "#f0c84a", color: "#f0c84a" }} />
-                <span style={{ fontWeight: 700, color: "#8b6914" }}>4.9</span>
-              </div>
-              <span className="px-3 py-1.5 rounded-full text-xs" style={{ background: "#eaf0e4", color: "#2d5a27", fontWeight: 600 }}>
+              {plant.tags.map((tag) => (
+                <span key={tag.id} className="px-3 py-1.5 rounded-full text-xs" style={{ background: "#eaf0e4", color: "#2d5a27", fontWeight: 600 }}>
+                  {tag.tag_name}
+                </span>
+              ))}
+              <span className="px-3 py-1.5 rounded-full text-xs" style={{ background: "#f0f4ff", color: "#3a5a8c", fontWeight: 600 }}>
                 {plant.details.length} mục chi tiết
               </span>
             </div>
