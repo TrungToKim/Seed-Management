@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetchRaw } from "../api";
-import { Plus, Pencil, Trash2, X, TreeDeciduous, RefreshCw, Leaf } from "lucide-react";
+import { useAuth } from "../useAuth";
+import { Plus, Pencil, Trash2, X, TreeDeciduous, RefreshCw, Leaf, Users } from "lucide-react";
 
 const FS = "'Playfair Display', Georgia, serif";
 
@@ -19,6 +20,14 @@ interface Plant {
   image_url: string | null;
   description: string | null;
   tags: Tag[];
+}
+
+interface SiteUser {
+  id: number;
+  username: string;
+  email: string;
+  is_admin: boolean;
+  created_at: string;
 }
 
 const emptyForm = {
@@ -42,8 +51,12 @@ const FORM_FIELDS: FormField[] = [
 ];
 
 export default function Admin() {
+  const { user } = useAuth();
+  const isAdmin = !!user?.is_admin;
   const [plants, setPlants] = useState<Plant[]>([]);
+  const [users, setUsers] = useState<SiteUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingUsers, setLoadingUsers] = useState(isAdmin);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -97,6 +110,52 @@ export default function Admin() {
       controller.abort();
     };
   }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      const res = await apiFetchRaw("/api/users");
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const data = await res.json();
+      setUsers(data);
+    } catch {
+      showToast("Không thể tải danh sách người dùng (cần quyền admin)", "error");
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetchRaw("/api/users");
+        if (cancelled) return;
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        setUsers(await res.json());
+      } catch {
+        if (!cancelled) showToast("Không thể tải danh sách người dùng (cần quyền admin)", "error");
+      } finally {
+        if (!cancelled) setLoadingUsers(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
+
+  const handleDeleteUser = async (id: number) => {
+    if (!confirm("Bạn có chắc chắn muốn xoá tài khoản này?")) return;
+    try {
+      const res = await apiFetchRaw(`/api/users/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed");
+      showToast("Xoá tài khoản thành công", "success");
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+    } catch {
+      showToast("Có lỗi xảy ra", "error");
+    }
+  };
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -268,6 +327,108 @@ export default function Admin() {
           </div>
         )}
       </div>
+
+      {/* Users management */}
+      {isAdmin && (
+        <div className="rounded-3xl overflow-hidden mt-8" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #eaf0e4" }}>
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4" style={{ color: "#7ab648" }} />
+              <span style={{ color: "#1c2e14", fontWeight: 700, fontSize: 15 }}>Quản lý tài khoản</span>
+              <span className="px-2 py-0.5 rounded-full text-xs" style={{ background: "#eaf0e4", color: "#2d5a27", fontWeight: 600 }}>
+                {users.length}
+              </span>
+            </div>
+            <button
+              onClick={fetchUsers}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
+              style={{ color: "#6b7c5e", background: "#f5f0e8" }}
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Làm mới
+            </button>
+          </div>
+
+          {loadingUsers ? (
+            <div className="text-center py-12">
+              <p style={{ fontSize: 32 }}>👤</p>
+              <p style={{ color: "#6b7c5e", fontSize: 15, marginTop: 8 }}>Đang tải...</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "#faf5f0" }}>
+                    {["ID", "Tên đăng nhập", "Email", "Vai trò", "Ngày tạo", "Thao tác"].map((h) => (
+                      <th
+                        key={h}
+                        className="px-6 py-3 text-left text-xs uppercase tracking-wider whitespace-nowrap"
+                        style={{ color: "#6b7c5e", fontWeight: 700 }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u, idx) => (
+                    <tr
+                      key={u.id}
+                      className="text-sm transition-colors"
+                      style={{
+                        borderTop: "1px solid #f0ece4",
+                        background: idx % 2 === 0 ? "#fff" : "#fdfbf7",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#eaf0e4")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = idx % 2 === 0 ? "#fff" : "#fdfbf7")}
+                    >
+                      <td className="px-6 py-3.5" style={{ color: "#999", fontWeight: 600 }}>{u.id}</td>
+                      <td className="px-6 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
+                            style={{ background: "linear-gradient(135deg, #2d5a27 0%, #7ab648 100%)" }}
+                          >
+                            {u.username.slice(0, 1).toUpperCase()}
+                          </div>
+                          <span style={{ color: "#1c2e14", fontWeight: 700 }}>{u.username}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-3.5" style={{ color: "#5a6e52" }}>{u.email}</td>
+                      <td className="px-6 py-3.5">
+                        <span
+                          className="px-2.5 py-1 rounded-full text-xs font-semibold"
+                          style={{
+                            background: u.is_admin ? "#eaf0e4" : "#f5f0e8",
+                            color: u.is_admin ? "#2d5a27" : "#888",
+                          }}
+                        >
+                          {u.is_admin ? "Admin" : "Thành viên"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3.5" style={{ color: "#5a6e52", fontSize: 13 }}>
+                        {new Date(u.created_at).toLocaleDateString("vi-VN")}
+                      </td>
+                      <td className="px-6 py-3.5">
+                        {!u.is_admin && (
+                          <button
+                            onClick={() => handleDeleteUser(u.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                            style={{ background: "#fdeeee", color: "#c0392b", fontWeight: 600 }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "#fadcdc")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "#fdeeee")}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Xoá
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal */}
       {showForm && (
