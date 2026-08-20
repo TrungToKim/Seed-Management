@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiFetchRaw } from "../api";
 import { useAuth } from "../useAuth";
-import { Plus, Pencil, Trash2, X, TreeDeciduous, RefreshCw, Leaf, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, X, TreeDeciduous, RefreshCw, Leaf, Users, LogIn } from "lucide-react";
 
 const FS = "'Playfair Display', Georgia, serif";
 
@@ -210,6 +211,29 @@ export default function Admin() {
 
   return (
     <div className="px-6 py-10 max-w-[1280px] mx-auto">
+      {!isAdmin && (
+        <div className="text-center py-20 rounded-3xl" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
+          <p style={{ fontSize: 48 }}>🔒</p>
+          <h2 style={{ fontFamily: FS, fontSize: 24, fontWeight: 700, color: "#1c2e14", marginTop: 12 }}>
+            Cần quyền quản trị viên
+          </h2>
+          <p style={{ color: "#6b7c5e", fontSize: 15, marginTop: 8, maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
+            Trang quản trị chỉ dành cho tài khoản có quyền quản trị viên.
+          </p>
+          <Link
+            to="/login"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm no-underline mt-6 transition-all"
+            style={{ background: "#2d5a27", color: "#fff", fontWeight: 700 }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#1e3f1a")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#2d5a27")}
+          >
+            <LogIn className="w-4 h-4" /> Đăng nhập tài khoản admin
+          </Link>
+        </div>
+      )}
+
+      {isAdmin && (
+        <>
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
         <div>
           <p className="text-sm uppercase tracking-widest mb-2" style={{ color: "#7ab648", fontWeight: 700 }}>Quản trị</p>
@@ -538,6 +562,8 @@ export default function Admin() {
           to { transform: translateX(0); opacity: 1; }
         }
       `}</style>
+        </>
+      )}
     </div>
   );
 }

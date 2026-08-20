@@ -7,6 +7,20 @@ load_dotenv()
 
 TOP_K = 4  # 3 ~ 4
 
+# Light deployment: the LLM and embeddings are served by Google's cloud,
+# so the server itself does not need to run PyTorch / sentence-transformers
+# and can fit within 512MB of RAM.
+LLM_MODEL = os.getenv("GOOGLE_LLM_MODEL", "gemini-3.1-flash-lite")
+EMBED_MODEL = os.getenv("GOOGLE_EMBED_MODEL", "gemini-embedding-2")
+COLLECTION_NAME = os.getenv("EMBEDDING_COLLECTION", "caythuoc_docs")
+
+def get_embeddings():
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
+    return GoogleGenerativeAIEmbeddings(
+        model=EMBED_MODEL,
+        google_api_key=os.getenv("GOOGLE_API_KEY"),
+    )
+
 MEDICAL_WARNING = (
     "\n\n---\n"
     "Cảnh báo: Thông tin trên chỉ mang tính chất tham khảo. "
@@ -55,19 +69,36 @@ def format_chat_history(history):
     return "\n".join(lines)
 
 
+def _extract_text(answer) -> str:
+    if isinstance(answer, str):
+        return answer
+    content = getattr(answer, "content", answer)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, dict):
+                text = part.get("text")
+                if text:
+                    parts.append(text)
+            elif isinstance(part, str):
+                parts.append(part)
+        return "\n".join(parts)
+    return str(content)
+
+
 def get_qa_chain():
     try:
-        from langchain_huggingface import HuggingFaceEmbeddings
         from langchain_google_genai import ChatGoogleGenerativeAI
         from langchain_postgres import PGVector
         from langchain_core.prompts import PromptTemplate
-        from langchain_core.runnables import RunnableLambda, RunnableParallel
-        from langchain_core.output_parsers import StrOutputParser
+        from langchain_core.runnables import RunnableLambda
 
-        embeddings = HuggingFaceEmbeddings(model_name="keepitreal/vietnamese-sbert")
+        embeddings = get_embeddings()
 
         vectorstore = PGVector(
-            collection_name="vpbank_docs",
+            collection_name=COLLECTION_NAME,
             connection=SQLALCHEMY_URL,
             embeddings=embeddings,
             use_jsonb=True,
@@ -76,7 +107,7 @@ def get_qa_chain():
         retriever = vectorstore.as_retriever(search_kwargs={"k": TOP_K})
 
         llm = ChatGoogleGenerativeAI(
-            model="gemini-3.1-flash-lite",
+            model=LLM_MODEL,
             google_api_key=os.getenv("GOOGLE_API_KEY"),
             temperature=0,
         )
@@ -99,12 +130,7 @@ def get_qa_chain():
                 }
             )
             answer = llm.invoke(rendered)
-            if isinstance(answer, list):
-                answer_text = "\n".join(
-                    part.get("text", "") for part in answer if isinstance(part, dict)
-                )
-            else:
-                answer_text = answer.content if hasattr(answer, "content") else str(answer)
+            answer_text = _extract_text(answer)
             return {
                 "result": answer_text,
                 "source_documents": docs,

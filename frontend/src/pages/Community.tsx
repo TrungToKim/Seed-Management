@@ -42,6 +42,7 @@ export default function Community() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastIdRef = useRef(0);
 
   const fetchMessages = async () => {
     try {
@@ -80,6 +81,39 @@ export default function Community() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
+
+  // Track the newest message id so polling only fetches new ones
+  useEffect(() => {
+    lastIdRef.current = messages.reduce((max, m) => Math.max(max, m.id), 0);
+  }, [messages]);
+
+  // Real-time updates via lightweight polling
+  useEffect(() => {
+    let stopped = false;
+    const poll = async () => {
+      if (stopped || document.hidden || lastIdRef.current === 0) return;
+      try {
+        const res = await apiFetchRaw(
+          `/api/community/messages?after_id=${lastIdRef.current}&page_size=200`
+        );
+        if (stopped || !res.ok) return;
+        const data = (await res.json()) as { items: CommunityMessage[] };
+        if (!data.items?.length) return;
+        setMessages((prev) => {
+          const known = new Set(prev.map((m) => m.id));
+          const fresh = data.items.filter((m) => !known.has(m.id));
+          return fresh.length ? [...prev, ...fresh] : prev;
+        });
+      } catch {
+        // transient network errors are ignored; next poll retries
+      }
+    };
+    const interval = setInterval(poll, 4000);
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   const send = async () => {
     const value = input.trim();

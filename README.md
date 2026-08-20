@@ -9,9 +9,9 @@ Hệ thống quản lý và tra cứu thông tin cây thuốc, tích hợp trợ
 | Frontend       | React 19, TypeScript, Vite 8, React Router 7        |
 | Backend        | Python 3.14, FastAPI, SQLAlchemy 2.0                |
 | Database       | PostgreSQL 16 + pgvector                            |
-| Vector Search  | PGVector, HuggingFace Embeddings (all-MiniLM-L6-v2) |
-| AI Chat        | LangChain, OpenAI-compatible LLM                    |
-| PDF Processing | LangChain Document Loaders                          |
+| Vector Search  | PGVector, Google Gemini Embeddings (gemini-embedding-2) |
+| AI Chat        | LangChain, Google Gemini (gemini-3.1-flash-lite)        |
+| PDF Processing | LangChain Document Loaders                              |
 
 ## Cấu trúc thư mục
 
@@ -24,15 +24,18 @@ Web_Seed_Management/
 │   │   └── assets/     # Static assets
 │   └── ...
 ├── backend/            # FastAPI backend
-│   ├── config/         # Database connection & settings
-│   ├── models/         # SQLAlchemy models (moved here)
-│   ├── schemas/        # Pydantic schemas (moved here)
-│   ├── routers/        # API route handlers
-│   ├── services/       # Business logic (chat, ingest)
-│   └── scripts/        # One-time utility scripts
-├── pdf/                # PDF documents for vector DB
+│   ├── main.py         # FastAPI app & API routes
+│   ├── database.py     # SQLAlchemy models, Pydantic schemas, migrations
+│   ├── auth_utils.py   # Password hashing & JWT-like token helpers
+│   ├── chat_service.py # RAG chat pipeline
+│   ├── ingest.py       # Vector hoá dữ liệu cho chat
+│   ├── import_pdf.py   # Import PDF vào database
+│   └── setup_db.py     # Tạo database, bảng & admin đầu tiên
+├── pdf/                # PDF documents cho vector DB
 └── ...
 ```
+
+> Lưu ý: mô hình AI chạy hoàn toàn trên cloud Google (Gemini flash-lite + gemini-embedding-2), máy chủ không cần cài PyTorch / sentence-transformers nên chạy tốt trên server 512MB RAM.
 
 ## Hướng dẫn chạy
 
@@ -74,19 +77,34 @@ npm run dev
 
 ```bash
 cd backend
-python scripts/import_pdf.py    # Import PDF vào database
-python services/ingest.py        # Vector hoá dữ liệu cho chat
+python setup_db.py            # Tạo database, bảng và admin đầu tiên (đọc từ .env)
+python import_pdf.py          # Import PDF vào database
+python ingest.py              # Vector hoá dữ liệu cho chat
 ```
+
+Cấu hình lần đầu trong `backend/.env`:
+
+- `GOOGLE_API_KEY` – API key Google Gemini (bắt buộc cho chat)
+- `GOOGLE_LLM_MODEL` – mô hình chat nhẹ (mặc định `gemini-3.1-flash-lite`)
+- `GOOGLE_EMBED_MODEL` – mô hình embedding (mặc định `gemini-embedding-2`)
+- `AUTH_SECRET` – chuỗi bí mật dùng ký token đăng nhập
+- `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL` – tài khoản admin đầu tiên
 
 ## API Endpoints
 
 | Method | Endpoint                                  | Mô tả                |
 | ------ | ----------------------------------------- | -------------------- |
+| POST   | /api/auth/register                       | Đăng ký tài khoản       |
+| POST   | /api/auth/login                          | Đăng nhập, trả về token |
+| GET    | /api/auth/me                             | Lấy thông tin người dùng |
+| GET    | /api/users                               | Danh sách người dùng (admin) |
+| GET    | /api/community/messages                  | Danh sách tin nhắn cộng đồng |
+| POST   | /api/community/messages                  | Đăng tin nhắn cộng đồng (cần login) |
 | GET    | /api/plants?page=&page_size=&search=&tag= | Danh sách cây thuốc  |
-| POST   | /api/plants                               | Thêm cây thuốc mới   |
+| POST   | /api/plants                               | Thêm cây thuốc mới (cần admin) |
 | GET    | /api/plants/{id}                          | Chi tiết cây thuốc   |
-| PUT    | /api/plants/{id}                          | Cập nhật cây thuốc   |
-| DELETE | /api/plants/{id}                          | Xoá cây thuốc        |
+| PUT    | /api/plants/{id}                          | Cập nhật cây thuốc (cần admin) |
+| DELETE | /api/plants/{id}                          | Xoá cây thuốc (cần admin) |
 | GET    | /api/tags?category=                       | Danh sách tags       |
 | POST   | /api/chat                                 | Hỏi đáp với AI (RAG) |
 

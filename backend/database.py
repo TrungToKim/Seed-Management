@@ -47,6 +47,29 @@ def get_db():
     finally:
         db.close()
 
+USER_MIGRATION_SQL = [
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(100)',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(2048)',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()',
+]
+
+
+def migrate_db():
+    eng = get_engine()
+    if eng is None:
+        return
+    try:
+        with eng.begin() as conn:
+            for statement in USER_MIGRATION_SQL:
+                conn.execute(text(statement))
+        print("Database migrations applied.")
+    except Exception as e:
+        print(f"Warning: Could not apply migrations: {e}")
+
+
 def init_db():
     eng = get_engine()
     if eng is None:
@@ -68,6 +91,7 @@ def init_db():
                 table.create(bind=eng, checkfirst=True)
             except Exception as ex:
                 print(f"LỖI TẠO BẢNG {table.name}: {ex}")
+    migrate_db()
 
 class Plant(Base):
     __tablename__ = "plants"
@@ -108,8 +132,14 @@ class User(Base):
     username = Column(String(50), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
+    full_name = Column(String(100), nullable=True)
+    avatar_url = Column(String(2048), nullable=True)
+    bio = Column(Text, nullable=True)
     is_admin = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)
     messages = relationship("CommunityMessage", back_populates="user")
 
 class CommunityMessage(Base):

@@ -1,8 +1,4 @@
 import os
-import time
-import hashlib
-import hmac
-import secrets
 from fastapi import FastAPI, HTTPException, Depends, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -16,56 +12,8 @@ from database import (
     UserCreate, UserLogin, UserResponse, AuthResponse,
     CommunityMessageCreate, CommunityMessageResponse, CommunityMessageListResponse,
 )
+from auth_utils import hash_password, verify_password, create_token, get_current_user
 from chat_service import get_qa_chain
-
-AUTH_SECRET = os.getenv("AUTH_SECRET", "dev-secret-change-me-in-production")
-PASSWORD_ITERATIONS = 200_000
-TOKEN_TTL = 7 * 24 * 60 * 60  # 7 days
-
-# ── Auth helpers ────────────────────────────────────────────────────
-
-def hash_password(password: str) -> str:
-    salt = secrets.token_hex(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), PASSWORD_ITERATIONS)
-    return f"{salt}${digest.hex()}"
-
-def verify_password(password: str, stored: str) -> bool:
-    try:
-        salt, digest_hex = stored.split("$", 1)
-        digest = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), PASSWORD_ITERATIONS)
-        return hmac.compare_digest(digest.hex(), digest_hex)
-    except Exception:
-        return False
-
-def create_token(user_id: int) -> str:
-    exp = int(time.time()) + TOKEN_TTL
-    payload = f"{user_id}.{exp}"
-    signature = hmac.new(AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
-    return f"{payload}.{signature}"
-
-def extract_token(authorization: Optional[str]) -> Optional[str]:
-    if not authorization:
-        return None
-    authorization = authorization.strip()
-    if authorization.lower().startswith("bearer "):
-        return authorization[7:].strip()
-    return authorization or None
-
-def get_current_user(authorization: Optional[str], db: Session) -> Optional[User]:
-    token = extract_token(authorization)
-    if not token:
-        return None
-    try:
-        user_id_s, exp_s, signature = token.split(".")
-        payload = f"{user_id_s}.{exp_s}"
-        expected = hmac.new(AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(expected, signature):
-            return None
-        if int(exp_s) < time.time():
-            return None
-        return db.query(User).filter(User.id == int(user_id_s)).first()
-    except Exception:
-        return None
 
 qa_chain = None
 
@@ -152,17 +100,27 @@ def me(authorization: Optional[str] = Header(None), db: Session = Depends(get_db
 def list_community_messages(
     page: int = Query(1, ge=1),
     page_size: int = Query(100, ge=1, le=500),
+    after_id: Optional[int] = Query(None, ge=0),
     db: Session = Depends(get_db),
 ):
-    total = db.query(CommunityMessage).count()
-    items = (
-        db.query(CommunityMessage)
-        .order_by(CommunityMessage.created_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
-    items = list(reversed(items))  # newest last
+    query = db.query(CommunityMessage)
+    if after_id is not None:
+        query = query.filter(CommunityMessage.id > after_id)
+    total = query.count()
+    if after_id is not None:
+        items = (
+            query.order_by(CommunityMessage.id.asc())
+            .limit(page_size)
+            .all()
+        )
+    else:
+        items = (
+            query.order_by(CommunityMessage.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+        items = list(reversed(items))  # newest last
     return CommunityMessageListResponse(items=items, total=total)
 
 @app.post("/api/community/messages", response_model=CommunityMessageResponse, status_code=201)
@@ -228,7 +186,10 @@ def list_plants(
     return PlantListResponse(items=items, total=total, page=page, page_size=page_size)
 
 @app.post("/api/plants", response_model=PlantResponse, status_code=201)
-def create_plant(data: PlantCreate, db: Session = Depends(get_db)):
+def create_plant(data: PlantCreate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    admin = get_current_user(authorization, db)
+    if not admin or not admin.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
     plant = Plant(**data.model_dump())
     db.add(plant)
     db.commit()
@@ -243,18 +204,24 @@ def get_plant(plant_id: int, db: Session = Depends(get_db)):
     return plant
 
 @app.put("/api/plants/{plant_id}", response_model=PlantResponse)
-def update_plant(plant_id: int, data: PlantCreate, db: Session = Depends(get_db)):
+def update_plant(plant_id: int, data: PlantCreate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    admin = get_current_user(authorization, db)
+    if not admin or not admin.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
     plant = db.query(Plant).filter(Plant.id == plant_id).first()
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")
-    for key, value in data.model_dump().items():
+    for key, value in data.model_dump(exclude_unset=True).items():
         setattr(plant, key, value)
     db.commit()
     db.refresh(plant)
     return plant
 
 @app.delete("/api/plants/{plant_id}", status_code=204)
-def delete_plant(plant_id: int, db: Session = Depends(get_db)):
+def delete_plant(plant_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    admin = get_current_user(authorization, db)
+    if not admin or not admin.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
     plant = db.query(Plant).filter(Plant.id == plant_id).first()
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")

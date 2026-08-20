@@ -129,8 +129,15 @@ export default function ChatBot() {
 
   function renderMarkdown(text: string) {
     const lines = text.split("\n");
+    const esc = (s: string) =>
+      s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     return lines.map((line, i) => {
-      const bold = line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+      const bold = esc(line).replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
       return (
         <p
           key={i}
