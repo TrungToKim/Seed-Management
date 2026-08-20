@@ -92,3 +92,5 @@ python services/ingest.py        # Vector hoá dữ liệu cho chat
 
 - Chat AI yêu cầu API key hợp lệ (cấu hình trong `backend/.env`)
 - Lần đầu chạy, cần chạy `import_pdf.py` và `ingest.py` để nạp dữ liệu
+
+-1
