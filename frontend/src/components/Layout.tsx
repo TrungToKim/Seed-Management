@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Leaf, TreeDeciduous, MessageCircle, Search, Menu, X, MessagesSquare, LogIn, LogOut, Crown } from "lucide-react";
 import { useAuth } from "../useAuth";
+import { getAvatarUrl } from "../api";
 
 const FF = "'Nunito', system-ui, sans-serif";
 const FS = "'Playfair Display', Georgia, serif";
@@ -61,6 +62,11 @@ export default function Layout() {
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">
             {links.map(({ to, label, icon: Icon }) => {
+              // Hide admin link if user is not admin/help
+              if (to === "/admin") {
+                const hasAdminAccess = !!user && (user.role === "administrator" || user.role === "help" || user.is_admin);
+                if (!hasAdminAccess) return null;
+              }
               const active = location.pathname === to;
               return (
                 <Link
@@ -102,31 +108,29 @@ export default function Layout() {
                 onBlur={(e) => (e.currentTarget.style.borderColor = "transparent")}
               />
             </form>
-            <Link
-              to="/chat"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm no-underline transition-all"
-              style={{ background: "#2d5a27", color: "#fff", fontWeight: 700 }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#1e3f1a")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "#2d5a27")}
-            >
-              <MessageCircle className="w-4 h-4" />
-              Hỏi AI
-            </Link>
             {user ? (
               <div className="flex items-center gap-2">
                 <Link
-                  to="/community"
+                  to="/account"
                   className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-colors no-underline"
                   style={{ background: "#eaf0e4" }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#d7e8cd")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "#eaf0e4")}
                 >
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                    style={{ background: "#7ab648" }}
-                  >
-                    {user.username.slice(0, 1).toUpperCase()}
-                  </div>
+                  {user.avatar_url ? (
+                    <img
+                      src={getAvatarUrl(user.avatar_url)}
+                      alt={user.username}
+                      className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                      style={{ background: "#7ab648" }}
+                    >
+                      {user.username.slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
                   <span className="text-sm max-w-[90px] truncate" style={{ color: "#2d5a27", fontWeight: 700 }}>
                     {user.username}
                   </span>
@@ -182,6 +186,10 @@ export default function Layout() {
               />
             </form>
             {links.map(({ to, label, icon: Icon }) => {
+              if (to === "/admin") {
+                const hasAdminAccess = !!user && (user.role === "administrator" || user.role === "help" || user.is_admin);
+                if (!hasAdminAccess) return null;
+              }
               const active = location.pathname === to;
               return (
                 <Link
@@ -203,12 +211,22 @@ export default function Layout() {
             {user ? (
               <div className="flex items-center justify-between gap-2 mt-2 px-4 py-3 rounded-xl" style={{ background: "#eaf0e4" }}>
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0" style={{ background: "#7ab648" }}>
-                    {user.username.slice(0, 1).toUpperCase()}
-                  </div>
+                  {user.avatar_url ? (
+                    <img
+                      src={getAvatarUrl(user.avatar_url)}
+                      alt={user.username}
+                      className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0" style={{ background: "#7ab648" }}>
+                      {user.username.slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <p className="text-sm font-bold truncate" style={{ color: "#2d5a27" }}>{user.username}</p>
-                    <p className="text-xs" style={{ color: "#6b7c5e" }}>{user.is_admin ? "Quản trị viên" : "Thành viên"}</p>
+                    <p className="text-xs" style={{ color: "#6b7c5e" }}>
+                      {user.role === "administrator" ? "Quản trị viên" : user.role === "help" ? "Hỗ trợ" : "Thành viên"}
+                    </p>
                   </div>
                 </div>
                 <button

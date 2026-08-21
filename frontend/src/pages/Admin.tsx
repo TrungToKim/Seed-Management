@@ -28,6 +28,7 @@ interface SiteUser {
   username: string;
   email: string;
   is_admin: boolean;
+  role: string;
   package_id?: number | null;
   package_name?: string;
   created_at: string;
@@ -77,13 +78,14 @@ const FORM_FIELDS: FormField[] = [
 
 export default function Admin() {
   const { user } = useAuth();
-  const isAdmin = !!user?.is_admin;
+  const hasAccess = !!user && (user.role === "administrator" || user.role === "help" || user.is_admin);
+  const isFullAdmin = !!user && (user.role === "administrator" || user.is_admin);
   const [plants, setPlants] = useState<Plant[]>([]);
   const [users, setUsers] = useState<SiteUser[]>([]);
   const [packages, setPackages] = useState<PackagePlan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingUsers, setLoadingUsers] = useState(isAdmin);
-  const [loadingPackages, setLoadingPackages] = useState(isAdmin);
+  const [loadingUsers, setLoadingUsers] = useState(isFullAdmin);
+  const [loadingPackages, setLoadingPackages] = useState(isFullAdmin);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -169,7 +171,7 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isFullAdmin) return;
     let cancelled = false;
     (async () => {
       try {
@@ -186,10 +188,10 @@ export default function Admin() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin]);
+  }, [isFullAdmin]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isFullAdmin) return;
     let cancelled = false;
     (async () => {
       try {
@@ -206,7 +208,7 @@ export default function Admin() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin]);
+  }, [isFullAdmin]);
 
   const handleDeleteUser = async (id: number) => {
     if (!confirm("Bạn có chắc chắn muốn xoá tài khoản này?")) return;
@@ -233,6 +235,22 @@ export default function Admin() {
       showToast("Đã cập nhật gói dịch vụ", "success");
     } catch {
       showToast("Có lỗi khi cập nhật gói", "error");
+    }
+  };
+
+  const changeUserRole = async (userId: number, role: string) => {
+    try {
+      const res = await apiFetchRaw(`/api/users/${userId}/role`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const updated = await res.json();
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
+      showToast("Đã cập nhật vai trò người dùng", "success");
+    } catch {
+      showToast("Có lỗi khi cập nhật vai trò", "error");
     }
   };
 
@@ -340,14 +358,14 @@ export default function Admin() {
 
   return (
     <div className="px-6 py-10 max-w-[1280px] mx-auto">
-      {!isAdmin && (
+      {!hasAccess && (
         <div className="text-center py-20 rounded-3xl" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
           <p style={{ fontSize: 48 }}>🔒</p>
           <h2 style={{ fontFamily: FS, fontSize: 24, fontWeight: 700, color: "#1c2e14", marginTop: 12 }}>
-            Cần quyền quản trị viên
+            Yêu cầu quyền truy cập quản trị/hỗ trợ
           </h2>
           <p style={{ color: "#6b7c5e", fontSize: 15, marginTop: 8, maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
-            Trang quản trị chỉ dành cho tài khoản có quyền quản trị viên.
+            Trang này chỉ dành cho tài khoản Quản trị viên hoặc Nhân viên hỗ trợ.
           </p>
           <Link
             to="/login"
@@ -356,12 +374,12 @@ export default function Admin() {
             onMouseEnter={(e) => (e.currentTarget.style.background = "#1e3f1a")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "#2d5a27")}
           >
-            <LogIn className="w-4 h-4" /> Đăng nhập tài khoản admin
+            <LogIn className="w-4 h-4" /> Đăng nhập
           </Link>
         </div>
       )}
 
-      {isAdmin && (
+      {hasAccess && (
         <>
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
         <div>
@@ -482,7 +500,7 @@ export default function Admin() {
       </div>
 
       {/* Users management */}
-      {isAdmin && (
+      {isFullAdmin && (
         <div className="rounded-3xl overflow-hidden mt-8" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
           <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #eaf0e4" }}>
             <div className="flex items-center gap-2">
@@ -548,20 +566,22 @@ export default function Admin() {
                       </td>
                       <td className="px-6 py-3.5" style={{ color: "#5a6e52" }}>{u.email}</td>
                       <td className="px-6 py-3.5">
-                        <span
-                          className="px-2.5 py-1 rounded-full text-xs font-semibold"
-                          style={{
-                            background: u.is_admin ? "#eaf0e4" : "#f5f0e8",
-                            color: u.is_admin ? "#2d5a27" : "#888",
-                          }}
+                        <select
+                          value={u.role ?? "customer"}
+                          disabled={u.id === user?.id}
+                          onChange={(e) => changeUserRole(u.id, e.target.value)}
+                          className="px-2.5 py-1.5 rounded-lg text-xs focus:outline-none"
+                          style={{ background: "#f5f0e8", border: "1.5px solid #e4ddd0", color: "#2d5a27", fontWeight: 600 }}
                         >
-                          {u.is_admin ? "Admin" : "Thành viên"}
-                        </span>
+                          <option value="administrator">administrator</option>
+                          <option value="customer">customer</option>
+                          <option value="help">help</option>
+                        </select>
                       </td>
                       <td className="px-6 py-3.5">
                         <select
                           value={u.package_id ?? ""}
-                          disabled={u.is_admin}
+                          disabled={u.role === "administrator"}
                           onChange={(e) => changeUserPackage(u.id, Number(e.target.value))}
                           className="px-2.5 py-1.5 rounded-lg text-xs focus:outline-none"
                           style={{ background: "#f5f0e8", border: "1.5px solid #e4ddd0", color: "#2d5a27", fontWeight: 600 }}
@@ -578,7 +598,7 @@ export default function Admin() {
                         {new Date(u.created_at).toLocaleDateString("vi-VN")}
                       </td>
                       <td className="px-6 py-3.5">
-                        {!u.is_admin && (
+                        {u.role !== "administrator" && (
                           <button
                             onClick={() => handleDeleteUser(u.id)}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
@@ -600,7 +620,7 @@ export default function Admin() {
       )}
 
       {/* Packages management */}
-      {isAdmin && (
+      {isFullAdmin && (
         <div className="rounded-3xl overflow-hidden mt-8" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
           <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #eaf0e4" }}>
             <div className="flex items-center gap-2">

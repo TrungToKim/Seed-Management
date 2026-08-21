@@ -1,9 +1,11 @@
 import os
-from fastapi import FastAPI, HTTPException, Depends, Query, Header, Request
+from fastapi import FastAPI, HTTPException, Depends, Query, Header, Request, File, UploadFile, Form
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from contextlib import asynccontextmanager
+from pydantic import BaseModel
 
 from database import (
     get_db, Plant, Tag, User, CommunityMessage, Package,
@@ -30,6 +32,10 @@ app = FastAPI(
     description="Trang web co ban de quan ly cay thuoc",
     version="1.0.0",
 )
+
+# Mount static files for uploads (avatars)
+os.makedirs("uploads/avatars", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
@@ -128,6 +134,68 @@ def me(authorization: Optional[str] = Header(None), db: Session = Depends(get_db
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user
 
+@app.put("/api/auth/me", response_model=UserResponse)
+async def update_profile(
+    username: str = Form(...),
+    email: str = Form(...),
+    full_name: Optional[str] = Form(None),
+    avatar: Optional[UploadFile] = File(None),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    user = get_current_user(authorization, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    username = username.strip()
+    email = email.strip().lower()
+    if not username or not email:
+        raise HTTPException(status_code=400, detail="Username and email are required")
+        
+    # Check if username or email is already taken by another user
+    existing = db.query(User).filter((User.username == username) | (User.email == email)).all()
+    for u in existing:
+        if u.id != user.id:
+            raise HTTPException(status_code=400, detail="Username or email already in use")
+            
+    user.username = username
+    user.email = email
+    user.full_name = full_name
+    
+    if avatar:
+        os.makedirs("uploads/avatars", exist_ok=True)
+        filename = f"{user.id}_{avatar.filename}"
+        filepath = os.path.join("uploads/avatars", filename)
+        with open(filepath, "wb") as buffer:
+            content = await avatar.read()
+            buffer.write(content)
+        user.avatar_url = f"/uploads/avatars/{filename}"
+        
+    db.commit()
+    db.refresh(user)
+    return user
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+@app.put("/api/auth/password")
+def change_password(
+    data: PasswordChangeRequest,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    user = get_current_user(authorization, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not verify_password(data.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Mật khẩu hiện tại không chính xác")
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Mật khẩu mới phải có ít nhất 6 ký tự")
+    user.password_hash = hash_password(data.new_password)
+    db.commit()
+    return {"message": "Password changed successfully"}
+
 # ── Community ───────────────────────────────────────────────────────
 
 @app.get("/api/community/messages", response_model=CommunityMessageListResponse)
@@ -189,20 +257,20 @@ def create_community_message(
 @app.get("/api/users", response_model=List[UserResponse])
 def list_users(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     admin = get_current_user(authorization, db)
-    if not admin or not admin.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not admin or admin.role != "administrator":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     return db.query(User).order_by(User.created_at.desc()).all()
 
 @app.delete("/api/users/{user_id}", status_code=204)
 def delete_user(user_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     admin = get_current_user(authorization, db)
-    if not admin or not admin.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not admin or admin.role != "administrator":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if user.is_admin:
-        raise HTTPException(status_code=400, detail="Cannot delete an admin account")
+    if user.role == "administrator":
+        raise HTTPException(status_code=400, detail="Cannot delete an administrator account")
     db.delete(user)
     db.commit()
     return None
@@ -228,9 +296,9 @@ def list_plants(
 
 @app.post("/api/plants", response_model=PlantResponse, status_code=201)
 def create_plant(data: PlantCreate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    admin = get_current_user(authorization, db)
-    if not admin or not admin.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    user = get_current_user(authorization, db)
+    if not user or user.role not in ["administrator", "help"]:
+        raise HTTPException(status_code=403, detail="Administrator or Help access required")
     plant = Plant(**data.model_dump())
     db.add(plant)
     db.commit()
@@ -246,9 +314,9 @@ def get_plant(plant_id: int, db: Session = Depends(get_db)):
 
 @app.put("/api/plants/{plant_id}", response_model=PlantResponse)
 def update_plant(plant_id: int, data: PlantCreate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    admin = get_current_user(authorization, db)
-    if not admin or not admin.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    user = get_current_user(authorization, db)
+    if not user or user.role not in ["administrator", "help"]:
+        raise HTTPException(status_code=403, detail="Administrator or Help access required")
     plant = db.query(Plant).filter(Plant.id == plant_id).first()
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")
@@ -260,9 +328,9 @@ def update_plant(plant_id: int, data: PlantCreate, authorization: Optional[str] 
 
 @app.delete("/api/plants/{plant_id}", status_code=204)
 def delete_plant(plant_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    admin = get_current_user(authorization, db)
-    if not admin or not admin.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    user = get_current_user(authorization, db)
+    if not user or user.role not in ["administrator", "help"]:
+        raise HTTPException(status_code=403, detail="Administrator or Help access required")
     plant = db.query(Plant).filter(Plant.id == plant_id).first()
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")
@@ -285,15 +353,15 @@ def list_tags(category: str = None, db: Session = Depends(get_db)):
 def list_packages(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     admin = get_current_user(authorization, db)
     query = db.query(Package)
-    if not (admin and admin.is_admin):
+    if not (admin and admin.role == "administrator"):
         query = query.filter(Package.is_active == True)
     return query.order_by(Package.monthly_price.asc()).all()
 
 @app.post("/api/packages", response_model=PackageResponse, status_code=201)
 def create_package(data: PackageCreate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     admin = get_current_user(authorization, db)
-    if not admin or not admin.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not admin or admin.role != "administrator":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     name = data.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Package name is required")
@@ -309,8 +377,8 @@ def create_package(data: PackageCreate, authorization: Optional[str] = Header(No
 @app.put("/api/packages/{package_id}", response_model=PackageResponse)
 def update_package(package_id: int, data: PackageUpdate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     admin = get_current_user(authorization, db)
-    if not admin or not admin.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not admin or admin.role != "administrator":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     package = db.query(Package).filter(Package.id == package_id).first()
     if not package:
         raise HTTPException(status_code=404, detail="Package not found")
@@ -323,8 +391,8 @@ def update_package(package_id: int, data: PackageUpdate, authorization: Optional
 @app.delete("/api/packages/{package_id}", status_code=204)
 def delete_package(package_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     admin = get_current_user(authorization, db)
-    if not admin or not admin.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not admin or admin.role != "administrator":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     package = db.query(Package).filter(Package.id == package_id).first()
     if not package:
         raise HTTPException(status_code=404, detail="Package not found")
@@ -355,8 +423,8 @@ def subscribe_package(data: SubscribeRequest, authorization: Optional[str] = Hea
 @app.put("/api/users/{user_id}/package", response_model=UserResponse)
 def set_user_package(user_id: int, data: UserPackageUpdate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     admin = get_current_user(authorization, db)
-    if not admin or not admin.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not admin or admin.role != "administrator":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -364,6 +432,27 @@ def set_user_package(user_id: int, data: UserPackageUpdate, authorization: Optio
     if not package:
         raise HTTPException(status_code=404, detail="Package not found")
     user.package_id = package.id
+    db.commit()
+    db.refresh(user)
+    return user
+
+class UserRoleUpdate(BaseModel):
+    role: str
+
+@app.put("/api/users/{user_id}/role", response_model=UserResponse)
+def set_user_role(user_id: int, data: UserRoleUpdate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    admin = get_current_user(authorization, db)
+    if not admin or admin.role != "administrator":
+        raise HTTPException(status_code=403, detail="Administrator access required")
+    if data.role not in ["administrator", "customer", "help"]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.id == admin.id and data.role != "administrator":
+        raise HTTPException(status_code=400, detail="Cannot demote yourself from administrator")
+    user.role = data.role
+    user.is_admin = (data.role == "administrator")
     db.commit()
     db.refresh(user)
     return user

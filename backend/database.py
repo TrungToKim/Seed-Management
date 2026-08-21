@@ -54,6 +54,8 @@ USER_MIGRATION_SQL = [
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE',
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ',
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()',
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'customer'",
+    "UPDATE users SET role = 'administrator' WHERE is_admin = TRUE AND role = 'customer'",
 ]
 
 PACKAGE_MIGRATION_SQL = [
@@ -228,6 +230,7 @@ class User(Base):
     avatar_url = Column(String(2048), nullable=True)
     bio = Column(Text, nullable=True)
     is_admin = Column(Boolean, default=False)
+    role = Column(String(50), default="customer", nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     package_id = Column(Integer, ForeignKey("packages.id"), nullable=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
@@ -328,9 +331,12 @@ class UserResponse(BaseModel):
     username: str
     email: str
     is_admin: bool
+    role: str = "customer"
     package_id: Optional[int] = None
     package_name: str = "Miễn phí"
     created_at: datetime
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 class PackageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

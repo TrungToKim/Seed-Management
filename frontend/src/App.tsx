@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Community from "./pages/Community";
 import Packages from "./pages/Packages";
+import Account from "./pages/Account";
 import { AuthProvider } from "./auth";
 
 export default function App() {
@@ -25,6 +26,7 @@ export default function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/community" element={<Community />} />
             <Route path="/packages" element={<Packages />} />
+            <Route path="/account" element={<Account />} />
           </Route>
         </Routes>
       </BrowserRouter>

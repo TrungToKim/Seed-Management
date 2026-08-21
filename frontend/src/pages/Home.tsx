@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { apiFetch } from "../api";
 import {
   ArrowRight, TreeDeciduous, Flower2,
-  Sprout, Search, BookOpen, MessageCircle, Shield, Droplets, Sun, Tag as TagIcon,
+  Sprout, Search, BookOpen, Shield, Droplets, Sun, Tag as TagIcon,
 } from "lucide-react";
 
 const FS = "'Playfair Display', Georgia, serif";
@@ -144,16 +144,6 @@ export default function Home() {
                 <TreeDeciduous className="w-4 h-4" />
                 Tra cứu cây ngay
                 <ArrowRight className="w-4 h-4" />
-              </Link>
-              <Link
-                to="/chat"
-                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm no-underline transition-all"
-                style={{ background: "rgba(255,255,255,0.15)", color: "#fff", fontWeight: 600, fontSize: 15, border: "1.5px solid rgba(255,255,255,0.4)", backdropFilter: "blur(8px)" }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.25)")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
-              >
-                <MessageCircle className="w-4 h-4" />
-                Chat với AI
               </Link>
             </div>
           </div>
@@ -342,21 +332,9 @@ export default function Home() {
             <h2 style={{ fontFamily: FS, fontSize: "clamp(24px, 3.5vw, 38px)", color: "#fff", fontWeight: 700, marginBottom: 12 }}>
               Có thắc mắc về cây thuốc? Hỏi ngay AI!
             </h2>
-            <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 16, marginBottom: 32 }}>
+            <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 16, marginBottom: 0 }}>
               AI tra cứu kho tài liệu cây thuốc Việt Nam. Trả lời 24/7.
             </p>
-            <div className="flex justify-center">
-              <Link
-                to="/chat"
-                className="flex items-center gap-2 px-8 py-3 rounded-xl text-sm no-underline transition-all"
-                style={{ background: "#7ab648", color: "#fff", fontWeight: 700 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#5e9a32")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "#7ab648")}
-              >
-                <MessageCircle className="w-4 h-4" />
-                Bắt đầu chat
-              </Link>
-            </div>
           </div>
         </div>
       </section>

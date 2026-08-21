@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || "https://seed-management-1.onrender.com";
+export const API_BASE = import.meta.env.VITE_API_URL || "https://seed-management-1.onrender.com";
 
 const AUTH_TOKEN_KEY = "tv_auth_token";
 const AUTH_USER_KEY = "tv_auth_user";
@@ -8,8 +8,19 @@ export interface AuthUser {
   username: string;
   email: string;
   is_admin: boolean;
+  role: string;
   package_id?: number | null;
   package_name?: string;
+  full_name?: string | null;
+  avatar_url?: string | null;
+}
+
+export function getAvatarUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
+    return url;
+  }
+  return `${API_BASE}${url}`;
 }
 
 export interface PackagePlan {
