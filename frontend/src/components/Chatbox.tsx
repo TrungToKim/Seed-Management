@@ -3,6 +3,7 @@ import {
   Send, Bot, User, RefreshCw, Copy, ThumbsUp, ThumbsDown, Plus, Leaf, BookOpen, Search, Droplets,
 } from "lucide-react";
 import { apiFetch } from "../api";
+import { useAuth } from "../useAuth";
 
 interface Message {
   id: string;
@@ -34,6 +35,7 @@ const INIT_CONVERSATIONS: Conversation[] = [
 ];
 
 export default function ChatBot() {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "init",
@@ -192,8 +194,8 @@ export default function ChatBot() {
               <User className="w-4 h-4 text-white" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm truncate" style={{ color: "#e6f2dd", fontWeight: 600 }}>guest_user</p>
-              <p className="text-xs" style={{ color: "#8fae83" }}>Gói miễn phí</p>
+              <p className="text-sm truncate" style={{ color: "#e6f2dd", fontWeight: 600 }}>{user?.username || "Khách"}</p>
+              <p className="text-xs" style={{ color: "#8fae83" }}>{user?.package_name || "Gói miễn phí"}</p>
             </div>
           </div>
         </div>

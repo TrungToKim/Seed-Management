@@ -107,6 +107,19 @@ Cấu hình lần đầu trong `backend/.env`:
 | DELETE | /api/plants/{id}                          | Xoá cây thuốc (cần admin) |
 | GET    | /api/tags?category=                       | Danh sách tags       |
 | POST   | /api/chat                                 | Hỏi đáp với AI (RAG) |
+| GET    | /api/packages                             | Danh sách gói dịch vụ (public: chỉ gói hoạt động) |
+| POST   | /api/packages                             | Thêm gói dịch vụ (admin) |
+| PUT    | /api/packages/{id}                        | Cập nhật gói dịch vụ (admin) |
+| DELETE | /api/packages/{id}                        | Xoá gói dịch vụ (admin) |
+| POST   | /api/me/package                           | Người dùng chọn/đăng ký gói |
+| PUT    | /api/users/{id}/package                   | Gán gói cho người dùng (admin) |
+
+## Gói dịch vụ & giới hạn tốc độ
+
+- Mỗi gói quy định `chat_per_minute` (lượt chat mỗi phút), `chat_per_day` (lượt chat mỗi ngày) và `community_per_day` (bài đăng mỗi ngày). Giá trị `0` nghĩa là không giới hạn.
+- Người dùng mới được gán gói **Miễn phí** mặc định. Có thể đổi gói tại trang `/packages` hoặc do admin gán.
+- Giới hạn được áp dụng cho `/api/chat` và đăng bài cộng đồng; khi vượt hạn, API trả về HTTP `429`.
+- Chat AI dùng cơ chế truy xuất lai (hybrid): tìm kiếm vector + tìm kiếm từ khoá trong cơ sở dữ liệu, đảm bảo cây đã có trong DB vẫn được trả lời kể cả khi truy xuất vector bỏ sót.
 
 ## Lưu ý
 

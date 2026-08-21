@@ -1,11 +1,13 @@
 import os
+import re
 from dotenv import load_dotenv
+from sqlalchemy import or_
 
-from database import SQLALCHEMY_URL
+from database import SQLALCHEMY_URL, get_db, Plant, Tag
 
 load_dotenv()
 
-TOP_K = 4  # 3 ~ 4
+TOP_K = 8  # retrieve more candidates; SQL keyword search acts as a fallback
 
 # Light deployment: the LLM and embeddings are served by Google's cloud,
 # so the server itself does not need to run PyTorch / sentence-transformers
@@ -88,6 +90,124 @@ def _extract_text(answer) -> str:
     return str(content)
 
 
+STOPWORDS = {
+    "cây", "cay", "co", "có", "va", "và", "cua", "của", "la", "là", "benh", "bệnh",
+    "dieu", "điều", "tri", "trị", "chua", "chữa", "bai", "bài", "thuoc", "thuốc",
+    "cong", "công", "dung", "dụng", "cach", "cách", "dung", "dùng", "sac", "sắc",
+    "nhung", "những", "loai", "loại", "nao", "nào", "gi", "gì", "giup", "giúp",
+    "cho", "cho", "de", "để", "khi", "một", "mot", "ban", "bạn", "toi", "tôi",
+    "hay", "hãy", "khong", "không", "theo", "ve", "về", "nhe", "nhé", "tra", "tra",
+    "cuu", "cứu", "hoi", "hỏi", "moi", "mọi", "thong", "thông", "tin", "cây thuốc",
+}
+
+
+def _normalize(text: str) -> str:
+    text = text.lower()
+    text = re.sub(r"[^a-zàáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ\s0-9]", " ", text)
+    return text
+
+
+def _tokenize(query: str):
+    tokens = []
+    for tok in _normalize(query).split():
+        if tok in STOPWORDS or len(tok) < 2:
+            continue
+        tokens.append(tok)
+    return tokens
+
+
+def _plant_to_text(plant) -> str:
+    text = f"Ten: {plant.common_name}\n"
+    if plant.scientific_name:
+        text += f"Ten khoa hoc: {plant.scientific_name}\n"
+    if plant.family:
+        text += f"Ho: {plant.family}\n"
+    if plant.description:
+        text += f"Mo ta: {plant.description}\n"
+    for detail in plant.details:
+        text += f"\n{detail.section_type}: {detail.content}"
+    return text
+
+
+_DIACRITIC_MAP = {
+    "à": "a", "á": "a", "ả": "a", "ã": "a", "ạ": "a",
+    "ă": "a", "ắ": "a", "ằ": "a", "ẳ": "a", "ẵ": "a", "ặ": "a",
+    "â": "a", "ấ": "a", "ầ": "a", "ẩ": "a", "ẫ": "a", "ậ": "a",
+    "è": "e", "é": "e", "ẻ": "e", "ẽ": "e", "ẹ": "e",
+    "ê": "e", "ế": "e", "ề": "e", "ể": "e", "ễ": "e", "ệ": "e",
+    "ì": "i", "í": "i", "ỉ": "i", "ĩ": "i", "ị": "i",
+    "ò": "o", "ó": "o", "ỏ": "o", "õ": "o", "ọ": "o",
+    "ô": "o", "ố": "o", "ồ": "o", "ổ": "o", "ỗ": "o", "ộ": "o",
+    "ơ": "o", "ớ": "o", "ờ": "o", "ở": "o", "ỡ": "o", "ợ": "o",
+    "ù": "u", "ú": "u", "ủ": "u", "ũ": "u", "ụ": "u",
+    "ư": "u", "ứ": "u", "ừ": "u", "ử": "u", "ữ": "u", "ự": "u",
+    "ỳ": "y", "ý": "y", "ỷ": "y", "ỹ": "y", "ỵ": "y",
+    "đ": "d",
+}
+
+
+def _strip_diacritics(text: str) -> str:
+    return "".join(_DIACRITIC_MAP.get(ch, ch) for ch in (text or "").lower())
+
+
+def _keyword_search(query: str, db, top: int = 6):
+    """Find plants whose name/description/tags match query tokens directly in SQL.
+
+    This guarantees that if the plant data exists in the database, its content is
+    included in the LLM context even when vector similarity fails to surface it.
+    """
+    from langchain_core.documents import Document
+
+    tokens = _tokenize(query)
+    if not tokens:
+        return []
+    matched = []
+    seen_ids = set()
+
+    for token in tokens:
+        rows = (
+            db.query(Plant)
+            .filter(
+                or_(
+                    Plant.common_name.ilike(f"%{token}%"),
+                    Plant.scientific_name.ilike(f"%{token}%"),
+                    Plant.description.ilike(f"%{token}%"),
+                    Plant.tags.any(Tag.tag_name.ilike(f"%{token}%")),
+                )
+            )
+            .limit(top)
+            .all()
+        )
+        for plant in rows:
+            if plant.id not in seen_ids:
+                seen_ids.add(plant.id)
+                matched.append(plant)
+        if len(matched) >= top:
+            break
+
+    if len(matched) < top:
+        stripped = {_strip_diacritics(t) for t in tokens}
+        name_query = db.query(Plant).limit(800).all()
+        for plant in name_query:
+            if len(matched) >= top:
+                break
+            if plant.id in seen_ids:
+                continue
+            name = _strip_diacritics(plant.common_name or "")
+            sci = _strip_diacritics(plant.scientific_name or "")
+            if any(t in name or (sci and t in sci) for t in stripped):
+                seen_ids.add(plant.id)
+                matched.append(plant)
+
+    docs = []
+    for plant in matched:
+        docs.append(Document(
+            page_content=_plant_to_text(plant),
+            metadata={"source": f"DB: {plant.common_name}", "plant_id": plant.id},
+        ))
+    return docs
+
+
 def get_qa_chain():
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
@@ -121,7 +241,28 @@ def get_qa_chain():
             question = inputs["question"]
             history = inputs.get("history", [])
             docs = retriever.invoke(question)
-            context = "\n\n".join(doc.page_content for doc in docs)
+
+            try:
+                db = next(get_db())
+                try:
+                    keyword_docs = _keyword_search(question, db)
+                finally:
+                    db.close()
+            except Exception as e:
+                print(f"Warning: keyword search failed: {e}")
+                keyword_docs = []
+
+            seen_ids = set()
+            merged = []
+            for doc in keyword_docs + docs:
+                pid = doc.metadata.get("plant_id")
+                if pid is not None:
+                    if pid in seen_ids:
+                        continue
+                    seen_ids.add(pid)
+                merged.append(doc)
+
+            context = "\n\n".join(doc.page_content for doc in merged)
             rendered = prompt.invoke(
                 {
                     "context": context,
@@ -133,7 +274,7 @@ def get_qa_chain():
             answer_text = _extract_text(answer)
             return {
                 "result": answer_text,
-                "source_documents": docs,
+                "source_documents": merged,
             }
 
         qa_chain = RunnableLambda(retrieve)

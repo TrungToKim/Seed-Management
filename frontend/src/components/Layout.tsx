@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Leaf, TreeDeciduous, MessageCircle, Search, Menu, X, MessagesSquare, LogIn, LogOut } from "lucide-react";
+import { Leaf, TreeDeciduous, MessageCircle, Search, Menu, X, MessagesSquare, LogIn, LogOut, Crown } from "lucide-react";
 import { useAuth } from "../useAuth";
 
 const FF = "'Nunito', system-ui, sans-serif";
@@ -11,6 +11,7 @@ const links = [
   { to: "/plants", label: "Tra cứu cây", icon: TreeDeciduous },
   { to: "/chat", label: "Chat AI", icon: MessageCircle },
   { to: "/community", label: "Cộng đồng", icon: MessagesSquare },
+  { to: "/packages", label: "Gói dịch vụ", icon: Crown },
   { to: "/admin", label: "Quản trị", icon: Leaf },
 ];
 

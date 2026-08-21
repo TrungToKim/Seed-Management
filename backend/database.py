@@ -56,6 +56,16 @@ USER_MIGRATION_SQL = [
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()',
 ]
 
+PACKAGE_MIGRATION_SQL = [
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS package_id INTEGER',
+    """DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_package_id') THEN
+        ALTER TABLE users ADD CONSTRAINT fk_users_package_id FOREIGN KEY (package_id) REFERENCES packages(id);
+      END IF;
+    END $$;""",
+]
+
 
 def migrate_db():
     eng = get_engine()
@@ -68,6 +78,74 @@ def migrate_db():
         print("Database migrations applied.")
     except Exception as e:
         print(f"Warning: Could not apply migrations: {e}")
+    try:
+        with eng.begin() as conn:
+            for statement in PACKAGE_MIGRATION_SQL:
+                conn.execute(text(statement))
+        print("Package migrations applied.")
+    except Exception as e:
+        print(f"Warning: Could not apply package migrations: {e}")
+
+
+DEFAULT_PACKAGES = [
+    {
+        "name": "Miễn phí",
+        "description": "Gói cơ bản dành cho người dùng mới. Đủ để trải nghiệm tra cứu cây thuốc.",
+        "monthly_price": 0,
+        "chat_per_minute": 5,
+        "chat_per_day": 30,
+        "community_per_day": 3,
+    },
+    {
+        "name": "Cơ bản",
+        "description": "Gói phổ biến cho người dùng thường xuyên, tăng gấp đôi lượt hỏi đáp AI.",
+        "monthly_price": 50000,
+        "chat_per_minute": 10,
+        "chat_per_day": 100,
+        "community_per_day": 10,
+    },
+    {
+        "name": "Premium",
+        "description": "Gói cao cấp, không giới hạn lượt chat trong ngày và ưu tiên tốc độ phản hồi.",
+        "monthly_price": 150000,
+        "chat_per_minute": 30,
+        "chat_per_day": 0,
+        "community_per_day": 50,
+    },
+]
+
+
+def ensure_default_packages():
+    eng = get_engine()
+    if eng is None or SessionLocal is None:
+        return
+    db = SessionLocal()
+    try:
+        for pkg in DEFAULT_PACKAGES:
+            exists = db.query(Package).filter(Package.name == pkg["name"]).first()
+            if not exists:
+                db.add(Package(**pkg))
+        db.commit()
+    except Exception as e:
+        print(f"Warning: Could not seed default packages: {e}")
+    finally:
+        db.close()
+
+
+def get_free_package(db: Session) -> "Package":
+    free = db.query(Package).filter(Package.name == "Miễn phí").first()
+    if free is None:
+        free = db.query(Package).order_by(Package.monthly_price.asc()).first()
+    if free is None:
+        free = Package(
+            name="Miễn phí",
+            description="Gói mặc định.",
+            monthly_price=0,
+            chat_per_minute=5,
+            chat_per_day=30,
+            community_per_day=3,
+        )
+    return free
 
 
 def init_db():
@@ -92,6 +170,7 @@ def init_db():
             except Exception as ex:
                 print(f"LỖI TẠO BẢNG {table.name}: {ex}")
     migrate_db()
+    ensure_default_packages()
 
 class Plant(Base):
     __tablename__ = "plants"
@@ -126,6 +205,19 @@ class PlantDetail(Base):
     source_reference = Column(String(255))
     plant = relationship("Plant", back_populates="details")
 
+class Package(Base):
+    __tablename__ = "packages"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    monthly_price = Column(Integer, default=0, nullable=False)
+    chat_per_minute = Column(Integer, default=5, nullable=False)
+    chat_per_day = Column(Integer, default=30, nullable=False)
+    community_per_day = Column(Integer, default=3, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), nullable=False)
+    users = relationship("User", back_populates="package")
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -137,10 +229,16 @@ class User(Base):
     bio = Column(Text, nullable=True)
     is_admin = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    package_id = Column(Integer, ForeignKey("packages.id"), nullable=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)
+    package = relationship("Package", back_populates="users")
     messages = relationship("CommunityMessage", back_populates="user")
+
+    @property
+    def package_name(self) -> str:
+        return self.package.name if self.package else "Miễn phí"
 
 class CommunityMessage(Base):
     __tablename__ = "community_messages"
@@ -230,7 +328,45 @@ class UserResponse(BaseModel):
     username: str
     email: str
     is_admin: bool
+    package_id: Optional[int] = None
+    package_name: str = "Miễn phí"
     created_at: datetime
+
+class PackageResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    description: Optional[str] = None
+    monthly_price: int
+    chat_per_minute: int
+    chat_per_day: int
+    community_per_day: int
+    is_active: bool
+    created_at: datetime
+
+class PackageCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    monthly_price: int = 0
+    chat_per_minute: int = 5
+    chat_per_day: int = 30
+    community_per_day: int = 3
+    is_active: bool = True
+
+class PackageUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    monthly_price: Optional[int] = None
+    chat_per_minute: Optional[int] = None
+    chat_per_day: Optional[int] = None
+    community_per_day: Optional[int] = None
+    is_active: Optional[bool] = None
+
+class UserPackageUpdate(BaseModel):
+    package_id: int
+
+class SubscribeRequest(BaseModel):
+    package_id: int
 
 class AuthResponse(BaseModel):
     token: str

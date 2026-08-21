@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiFetchRaw } from "../api";
 import { useAuth } from "../useAuth";
-import { Plus, Pencil, Trash2, X, TreeDeciduous, RefreshCw, Leaf, Users, LogIn } from "lucide-react";
+import { Plus, Pencil, Trash2, X, TreeDeciduous, RefreshCw, Leaf, Users, LogIn, Crown } from "lucide-react";
 
 const FS = "'Playfair Display', Georgia, serif";
 
@@ -28,6 +28,20 @@ interface SiteUser {
   username: string;
   email: string;
   is_admin: boolean;
+  package_id?: number | null;
+  package_name?: string;
+  created_at: string;
+}
+
+interface PackagePlan {
+  id: number;
+  name: string;
+  description: string | null;
+  monthly_price: number;
+  chat_per_minute: number;
+  chat_per_day: number;
+  community_per_day: number;
+  is_active: boolean;
   created_at: string;
 }
 
@@ -38,6 +52,16 @@ const emptyForm = {
   region: "",
   image_url: "",
   description: "",
+};
+
+const emptyPackageForm = {
+  name: "",
+  description: "",
+  monthly_price: 0,
+  chat_per_minute: 5,
+  chat_per_day: 30,
+  community_per_day: 3,
+  is_active: true,
 };
 
 type FormField = { key: keyof typeof emptyForm; label: string; type: "input" | "textarea"; required?: boolean };
@@ -56,11 +80,16 @@ export default function Admin() {
   const isAdmin = !!user?.is_admin;
   const [plants, setPlants] = useState<Plant[]>([]);
   const [users, setUsers] = useState<SiteUser[]>([]);
+  const [packages, setPackages] = useState<PackagePlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingUsers, setLoadingUsers] = useState(isAdmin);
+  const [loadingPackages, setLoadingPackages] = useState(isAdmin);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [showPackageForm, setShowPackageForm] = useState(false);
+  const [editingPackageId, setEditingPackageId] = useState<number | null>(null);
+  const [pkgForm, setPkgForm] = useState(emptyPackageForm);
   const [toast, setToast] = useState<{ message: string; type: string } | null>(null);
 
   const showToast = (message: string, type: string) => {
@@ -126,6 +155,39 @@ export default function Admin() {
     }
   };
 
+  const fetchPackages = async () => {
+    try {
+      setLoadingPackages(true);
+      const res = await apiFetchRaw("/api/packages");
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      setPackages(await res.json());
+    } catch {
+      showToast("Không thể tải danh sách gói dịch vụ", "error");
+    } finally {
+      setLoadingPackages(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetchRaw("/api/packages");
+        if (cancelled) return;
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        setPackages(await res.json());
+      } catch {
+        if (!cancelled) showToast("Không thể tải danh sách gói dịch vụ", "error");
+      } finally {
+        if (!cancelled) setLoadingPackages(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
+
   useEffect(() => {
     if (!isAdmin) return;
     let cancelled = false;
@@ -155,6 +217,73 @@ export default function Admin() {
       setUsers((prev) => prev.filter((u) => u.id !== id));
     } catch {
       showToast("Có lỗi xảy ra", "error");
+    }
+  };
+
+  const changeUserPackage = async (userId: number, packageId: number) => {
+    try {
+      const res = await apiFetchRaw(`/api/users/${userId}/package`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ package_id: packageId }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const updated = await res.json();
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
+      showToast("Đã cập nhật gói dịch vụ", "success");
+    } catch {
+      showToast("Có lỗi khi cập nhật gói", "error");
+    }
+  };
+
+  const openPackageCreate = () => {
+    setPkgForm(emptyPackageForm);
+    setEditingPackageId(null);
+    setShowPackageForm(true);
+  };
+
+  const openPackageEdit = (pkg: PackagePlan) => {
+    setPkgForm({
+      name: pkg.name,
+      description: pkg.description || "",
+      monthly_price: pkg.monthly_price,
+      chat_per_minute: pkg.chat_per_minute,
+      chat_per_day: pkg.chat_per_day,
+      community_per_day: pkg.community_per_day,
+      is_active: pkg.is_active,
+    });
+    setEditingPackageId(pkg.id);
+    setShowPackageForm(true);
+  };
+
+  const handleSubmitPackage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = editingPackageId ? `/api/packages/${editingPackageId}` : "/api/packages";
+    const method = editingPackageId ? "PUT" : "POST";
+    try {
+      const res = await apiFetchRaw(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pkgForm),
+      });
+      if (!res.ok) throw new Error("Failed");
+      showToast(editingPackageId ? "Cập nhật gói thành công" : "Thêm gói thành công", "success");
+      setShowPackageForm(false);
+      fetchPackages();
+    } catch {
+      showToast("Có lỗi xảy ra", "error");
+    }
+  };
+
+  const handleDeletePackage = async (pkg: PackagePlan) => {
+    if (!confirm(`Bạn có chắc chắn muốn xoá gói "${pkg.name}"?`)) return;
+    try {
+      const res = await apiFetchRaw(`/api/packages/${pkg.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed");
+      showToast("Xoá gói thành công", "success");
+      fetchPackages();
+    } catch {
+      showToast("Không thể xoá gói này", "error");
     }
   };
 
@@ -382,7 +511,7 @@ export default function Admin() {
               <table className="w-full" style={{ borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "#faf5f0" }}>
-                    {["ID", "Tên đăng nhập", "Email", "Vai trò", "Ngày tạo", "Thao tác"].map((h) => (
+                    {["ID", "Tên đăng nhập", "Email", "Vai trò", "Gói dịch vụ", "Ngày tạo", "Thao tác"].map((h) => (
                       <th
                         key={h}
                         className="px-6 py-3 text-left text-xs uppercase tracking-wider whitespace-nowrap"
@@ -429,6 +558,22 @@ export default function Admin() {
                           {u.is_admin ? "Admin" : "Thành viên"}
                         </span>
                       </td>
+                      <td className="px-6 py-3.5">
+                        <select
+                          value={u.package_id ?? ""}
+                          disabled={u.is_admin}
+                          onChange={(e) => changeUserPackage(u.id, Number(e.target.value))}
+                          className="px-2.5 py-1.5 rounded-lg text-xs focus:outline-none"
+                          style={{ background: "#f5f0e8", border: "1.5px solid #e4ddd0", color: "#2d5a27", fontWeight: 600 }}
+                        >
+                          <option value="" disabled>—</option>
+                          {packages.map((pkg) => (
+                            <option key={pkg.id} value={pkg.id}>
+                              {pkg.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="px-6 py-3.5" style={{ color: "#5a6e52", fontSize: 13 }}>
                         {new Date(u.created_at).toLocaleDateString("vi-VN")}
                       </td>
@@ -444,6 +589,122 @@ export default function Admin() {
                             <Trash2 className="w-3.5 h-3.5" /> Xoá
                           </button>
                         )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Packages management */}
+      {isAdmin && (
+        <div className="rounded-3xl overflow-hidden mt-8" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #eaf0e4" }}>
+            <div className="flex items-center gap-2">
+              <Crown className="w-4 h-4" style={{ color: "#7ab648" }} />
+              <span style={{ color: "#1c2e14", fontWeight: 700, fontSize: 15 }}>Quản lý gói dịch vụ</span>
+              <span className="px-2 py-0.5 rounded-full text-xs" style={{ background: "#eaf0e4", color: "#2d5a27", fontWeight: 600 }}>
+                {packages.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchPackages}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
+                style={{ color: "#6b7c5e", background: "#f5f0e8" }}
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Làm mới
+              </button>
+              <button
+                onClick={openPackageCreate}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
+                style={{ background: "#2d5a27", color: "#fff", fontWeight: 700 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#1e3f1a")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "#2d5a27")}
+              >
+                <Plus className="w-3.5 h-3.5" /> Thêm gói
+              </button>
+            </div>
+          </div>
+
+          {loadingPackages ? (
+            <div className="text-center py-12">
+              <p style={{ fontSize: 32 }}>👑</p>
+              <p style={{ color: "#6b7c5e", fontSize: 15, marginTop: 8 }}>Đang tải...</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "#faf5f0" }}>
+                    {["ID", "Tên gói", "Giá/tháng", "Chat/phút", "Chat/ngày", "Bài/ngày", "Trạng thái", "Thao tác"].map((h) => (
+                      <th
+                        key={h}
+                        className="px-6 py-3 text-left text-xs uppercase tracking-wider whitespace-nowrap"
+                        style={{ color: "#6b7c5e", fontWeight: 700 }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {packages.map((pkg, idx) => (
+                    <tr
+                      key={pkg.id}
+                      className="text-sm transition-colors"
+                      style={{
+                        borderTop: "1px solid #f0ece4",
+                        background: idx % 2 === 0 ? "#fff" : "#fdfbf7",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#eaf0e4")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = idx % 2 === 0 ? "#fff" : "#fdfbf7")}
+                    >
+                      <td className="px-6 py-3.5" style={{ color: "#999", fontWeight: 600 }}>{pkg.id}</td>
+                      <td className="px-6 py-3.5">
+                        <span style={{ color: "#1c2e14", fontWeight: 700 }}>{pkg.name}</span>
+                      </td>
+                      <td className="px-6 py-3.5" style={{ color: "#2d5a27", fontWeight: 700 }}>
+                        {pkg.monthly_price <= 0 ? "Miễn phí" : `${pkg.monthly_price.toLocaleString("vi-VN")}đ`}
+                      </td>
+                      <td className="px-6 py-3.5" style={{ color: "#5a6e52" }}>{pkg.chat_per_minute <= 0 ? "∞" : pkg.chat_per_minute}</td>
+                      <td className="px-6 py-3.5" style={{ color: "#5a6e52" }}>{pkg.chat_per_day <= 0 ? "∞" : pkg.chat_per_day}</td>
+                      <td className="px-6 py-3.5" style={{ color: "#5a6e52" }}>{pkg.community_per_day <= 0 ? "∞" : pkg.community_per_day}</td>
+                      <td className="px-6 py-3.5">
+                        <span
+                          className="px-2.5 py-1 rounded-full text-xs font-semibold"
+                          style={{
+                            background: pkg.is_active ? "#eaf0e4" : "#fdeeee",
+                            color: pkg.is_active ? "#2d5a27" : "#c0392b",
+                          }}
+                        >
+                          {pkg.is_active ? "Hoạt động" : "Tạm dừng"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openPackageEdit(pkg)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                            style={{ background: "#eaf0e4", color: "#2d5a27", fontWeight: 600 }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "#d7e8cd")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "#eaf0e4")}
+                          >
+                            <Pencil className="w-3.5 h-3.5" /> Sửa
+                          </button>
+                          <button
+                            onClick={() => handleDeletePackage(pkg)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                            style={{ background: "#fdeeee", color: "#c0392b", fontWeight: 600 }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "#fadcdc")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "#fdeeee")}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Xoá
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -530,6 +791,138 @@ export default function Admin() {
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#d7e8cd")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "#eaf0e4")}
                   onClick={() => setShowForm(false)}
+                >
+                  Huỷ
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Package Modal */}
+      {showPackageForm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
+          onClick={() => setShowPackageForm(false)}
+        >
+          <div
+            className="relative w-full max-w-lg rounded-3xl overflow-hidden"
+            style={{ background: "#fff", maxHeight: "90vh", overflowY: "auto" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-5" style={{ background: "#faf5f0", borderBottom: "1px solid #e4ddd0" }}>
+              <h2 style={{ fontFamily: FS, fontSize: 20, fontWeight: 700, color: "#1c2e14" }}>
+                {editingPackageId ? "Chỉnh Sửa Gói Dịch Vụ" : "Thêm Gói Dịch Vụ Mới"}
+              </h2>
+              <button
+                onClick={() => setShowPackageForm(false)}
+                className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+                style={{ background: "#fff" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#eaf0e4")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+              >
+                <X className="w-4 h-4" style={{ color: "#6b7c5e" }} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitPackage} className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Tên gói *</label>
+                  <input
+                    required
+                    value={pkgForm.name}
+                    onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                    style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Mô tả</label>
+                  <textarea
+                    value={pkgForm.description}
+                    onChange={(e) => setPkgForm({ ...pkgForm, description: e.target.value })}
+                    rows={2}
+                    className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none resize-y"
+                    style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Giá / tháng (VNĐ)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={pkgForm.monthly_price}
+                      onChange={(e) => setPkgForm({ ...pkgForm, monthly_price: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                      style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Chat / phút (0 = ∞)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={pkgForm.chat_per_minute}
+                      onChange={(e) => setPkgForm({ ...pkgForm, chat_per_minute: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                      style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Chat / ngày (0 = ∞)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={pkgForm.chat_per_day}
+                      onChange={(e) => setPkgForm({ ...pkgForm, chat_per_day: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                      style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Bài đăng / ngày</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={pkgForm.community_per_day}
+                      onChange={(e) => setPkgForm({ ...pkgForm, community_per_day: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                      style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                    />
+                  </div>
+                </div>
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={pkgForm.is_active}
+                    onChange={(e) => setPkgForm({ ...pkgForm, is_active: e.target.checked })}
+                    className="w-4 h-4 accent-[#2d5a27]"
+                  />
+                  <span className="text-sm" style={{ color: "#3d5c35", fontWeight: 600 }}>Gói đang hoạt động</span>
+                </label>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="submit"
+                  className="flex-1 px-5 py-2.5 rounded-xl text-sm transition-all"
+                  style={{ background: "#2d5a27", color: "#fff", fontWeight: 700 }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#1e3f1a")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#2d5a27")}
+                >
+                  {editingPackageId ? "Cập Nhật" : "Thêm Mới"}
+                </button>
+                <button
+                  type="button"
+                  className="px-5 py-2.5 rounded-xl text-sm transition-all"
+                  style={{ background: "#eaf0e4", color: "#2d5a27", fontWeight: 600 }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#d7e8cd")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#eaf0e4")}
+                  onClick={() => setShowPackageForm(false)}
                 >
                   Huỷ
                 </button>

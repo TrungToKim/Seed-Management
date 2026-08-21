@@ -1,19 +1,22 @@
 import os
-from fastapi import FastAPI, HTTPException, Depends, Query, Header
+from fastapi import FastAPI, HTTPException, Depends, Query, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from contextlib import asynccontextmanager
 
 from database import (
-    get_db, Plant, Tag, User, CommunityMessage,
+    get_db, Plant, Tag, User, CommunityMessage, Package,
     PlantResponse, PlantListResponse, PlantCreate,
     TagResponse, ChatRequest, ChatResponse,
     UserCreate, UserLogin, UserResponse, AuthResponse,
+    PackageResponse, PackageCreate, PackageUpdate, UserPackageUpdate, SubscribeRequest,
     CommunityMessageCreate, CommunityMessageResponse, CommunityMessageListResponse,
+    get_free_package,
 )
 from auth_utils import hash_password, verify_password, create_token, get_current_user
 from chat_service import get_qa_chain
+from rate_limit import check_rate_limit, check_daily_limit
 
 qa_chain = None
 
@@ -41,12 +44,37 @@ def root():
     return {"message": "Quan ly cay thuoc API", "docs": "/docs"}
 
 @app.post("/api/chat", response_model=ChatResponse)
-def post_chat(req: ChatRequest):
+def post_chat(
+    req: ChatRequest,
+    request: Request,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+):
     global qa_chain
     if qa_chain is None:
         qa_chain = get_qa_chain()
     if qa_chain is None:
         raise HTTPException(status_code=503, detail="Chat service is not available (vector DB not initialized)")
+
+    user = get_current_user(authorization, db)
+    package = user.package if user and user.package else get_free_package(db)
+    if user:
+        rate_key = f"user:{user.id}"
+    else:
+        ip = request.client.host if request.client else "unknown"
+        rate_key = f"ip:{ip}"
+
+    if not check_daily_limit(f"chat_day:{rate_key}", package.chat_per_day):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Bạn đã đạt giới hạn {package.chat_per_day} lượt chat hôm nay. Hãy nâng cấp gói để tăng giới hạn.",
+        )
+    if not check_rate_limit(f"chat_min:{rate_key}", package.chat_per_minute, 60):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Bạn đang hỏi quá nhanh (tối đa {package.chat_per_minute} lượt/phút). Vui lòng chờ một lát.",
+        )
+
     try:
         result = qa_chain.invoke({"question": req.query, "history": req.history})
     except Exception as e:
@@ -74,7 +102,13 @@ def register(data: UserCreate, db: Session = Depends(get_db)):
     existing = db.query(User).filter((User.username == username) | (User.email == email)).first()
     if existing:
         raise HTTPException(status_code=400, detail="Username or email already exists")
-    user = User(username=username, email=email, password_hash=hash_password(data.password))
+    free_pkg = get_free_package(db)
+    user = User(
+        username=username,
+        email=email,
+        password_hash=hash_password(data.password),
+        package_id=free_pkg.id if free_pkg.id else None,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -126,12 +160,19 @@ def list_community_messages(
 @app.post("/api/community/messages", response_model=CommunityMessageResponse, status_code=201)
 def create_community_message(
     data: CommunityMessageCreate,
+    request: Request,
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ):
     user = get_current_user(authorization, db)
     if not user:
         raise HTTPException(status_code=401, detail="Please login to post a message")
+    package = user.package if user.package else get_free_package(db)
+    if not check_daily_limit(f"community_day:user:{user.id}", package.community_per_day):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Bạn đã đạt giới hạn {package.community_per_day} bài đăng hôm nay. Hãy nâng cấp gói để tăng giới hạn.",
+        )
     content = data.content.strip()
     if not content:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
@@ -237,3 +278,92 @@ def list_tags(category: str = None, db: Session = Depends(get_db)):
     if category:
         query = query.filter(Tag.category == category)
     return query.all()
+
+# ── Packages (subscription tiers) ───────────────────────────────────
+
+@app.get("/api/packages", response_model=List[PackageResponse])
+def list_packages(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    admin = get_current_user(authorization, db)
+    query = db.query(Package)
+    if not (admin and admin.is_admin):
+        query = query.filter(Package.is_active == True)
+    return query.order_by(Package.monthly_price.asc()).all()
+
+@app.post("/api/packages", response_model=PackageResponse, status_code=201)
+def create_package(data: PackageCreate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    admin = get_current_user(authorization, db)
+    if not admin or not admin.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    name = data.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Package name is required")
+    existing = db.query(Package).filter(Package.name == name).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Package name already exists")
+    package = Package(**data.model_dump())
+    db.add(package)
+    db.commit()
+    db.refresh(package)
+    return package
+
+@app.put("/api/packages/{package_id}", response_model=PackageResponse)
+def update_package(package_id: int, data: PackageUpdate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    admin = get_current_user(authorization, db)
+    if not admin or not admin.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    package = db.query(Package).filter(Package.id == package_id).first()
+    if not package:
+        raise HTTPException(status_code=404, detail="Package not found")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(package, key, value)
+    db.commit()
+    db.refresh(package)
+    return package
+
+@app.delete("/api/packages/{package_id}", status_code=204)
+def delete_package(package_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    admin = get_current_user(authorization, db)
+    if not admin or not admin.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    package = db.query(Package).filter(Package.id == package_id).first()
+    if not package:
+        raise HTTPException(status_code=404, detail="Package not found")
+    if package.name == "Miễn phí":
+        raise HTTPException(status_code=400, detail="Cannot delete the free package")
+    in_use = db.query(User).filter(User.package_id == package_id).count()
+    if in_use:
+        package.is_active = False
+        db.commit()
+        raise HTTPException(status_code=400, detail=f"Package is used by {in_use} user(s). It was deactivated instead.")
+    db.delete(package)
+    db.commit()
+    return None
+
+@app.post("/api/me/package", response_model=UserResponse)
+def subscribe_package(data: SubscribeRequest, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    user = get_current_user(authorization, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Please login to choose a package")
+    package = db.query(Package).filter(Package.id == data.package_id).first()
+    if not package or not package.is_active:
+        raise HTTPException(status_code=404, detail="Package not found")
+    user.package_id = package.id
+    db.commit()
+    db.refresh(user)
+    return user
+
+@app.put("/api/users/{user_id}/package", response_model=UserResponse)
+def set_user_package(user_id: int, data: UserPackageUpdate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    admin = get_current_user(authorization, db)
+    if not admin or not admin.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    package = db.query(Package).filter(Package.id == data.package_id).first()
+    if not package:
+        raise HTTPException(status_code=404, detail="Package not found")
+    user.package_id = package.id
+    db.commit()
+    db.refresh(user)
+    return user

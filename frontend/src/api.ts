@@ -8,6 +8,20 @@ export interface AuthUser {
   username: string;
   email: string;
   is_admin: boolean;
+  package_id?: number | null;
+  package_name?: string;
+}
+
+export interface PackagePlan {
+  id: number;
+  name: string;
+  description: string | null;
+  monthly_price: number;
+  chat_per_minute: number;
+  chat_per_day: number;
+  community_per_day: number;
+  is_active: boolean;
+  created_at: string;
 }
 
 export function getToken(): string | null {
