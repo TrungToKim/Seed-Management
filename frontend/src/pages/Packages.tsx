@@ -6,11 +6,6 @@ import { Sparkles, Infinity as InfinityIcon, Check, Crown, MessageCircle, Users,
 
 const FS = "'Playfair Display', Georgia, serif";
 
-const TIER_STYLES: Record<string, { bg: string; border: string; badge: string; cta: string; ctaHover: string }> = {
-  "Miễn phí": {  bg: "#1c2e14", border: "#7ab648", badge: "#2e4a24", cta: "#7ab648", ctaHover: "#5e9a32"  },
-  "Membership": {  bg: "#1c2e14", border: "#7ab648", badge: "#2e4a24", cta: "#7ab648", ctaHover: "#5e9a32" },
-};
-
 function limitText(value: number, suffix: string) { 
   return value <= 0 ? `Không giới hạn ${suffix}` : `${value} lượt ${suffix}`;
 }
@@ -40,18 +35,12 @@ export default function Packages() {
   }, []);
 
   const getDiscountInfo = (pkg: PackagePlan, dur: DurationType) => {
-    if (dur === "Free" || pkg.name === "Miễn phí") return { discountPercent: 0, months: 1 };
-    const months = parseInt(dur);
-    if (dur === "3") {
-      return { discountPercent: (pkg as any).discount_3m ?? 0, months };
-    }
-    if (dur === "6") {
-      return { discountPercent: (pkg as any).discount_6m ?? 0, months };
-    }
-    if (dur === "12") {
-      return { discountPercent: (pkg as any).discount_12m ?? 0, months };
-    }
-    return { discountPercent: 0, months: 1 };
+    const months = pkg.duration_months || (dur === "Free" ? 1 : parseInt(dur)) || 1;
+    let discountPercent = 0;
+    if (months === 3) discountPercent = (pkg as any).discount_3m ?? 0;
+    else if (months === 6) discountPercent = (pkg as any).discount_6m ?? 0;
+    else if (months === 12) discountPercent = (pkg as any).discount_12m ?? 0;
+    return { discountPercent, months };
   };
 
   const handleSelectPlan = (pkg: PackagePlan) => {
@@ -93,9 +82,10 @@ export default function Packages() {
   // Filter packages by active duration choice
   const displayedPackages = packages.filter((pkg) => {
     if (duration === "Free") {
-      return pkg.name === "Miễn phí";
+      return pkg.name === "Miễn phí" || pkg.monthly_price <= 0;
     } else {
-      return pkg.name !== "Miễn phí";
+      const targetMonths = duration === "1" ? 1 : parseInt(duration);
+      return (pkg.duration_months ?? 1) === targetMonths && pkg.name !== "Miễn phí";
     }
   });
 
@@ -138,9 +128,11 @@ export default function Packages() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-[800px] mx-auto">
           {displayedPackages.map((pkg) => {
-            const style = TIER_STYLES[pkg.name] ?? TIER_STYLES["Miễn phí"];
-            const isCurrent = user?.package_id === pkg.id;
             const isFree = pkg.monthly_price <= 0;
+            const style = isFree
+              ? { bg: "#ffffff", border: "#e4ddd0", badge: "#f5f0e8", cta: "#2d5a27", ctaHover: "#1e3f1a" }
+              : { bg: "linear-gradient(135deg, #1c2e14 0%, #2d5a27 100%)", border: "#7ab648", badge: "#2e4a24", cta: "#7ab648", ctaHover: "#93d45d" };
+            const isCurrent = user?.package_id === pkg.id;
             
             const { discountPercent, months } = getDiscountInfo(pkg, duration);
             const originalMonthlyPrice = pkg.monthly_price;
@@ -161,19 +153,19 @@ export default function Packages() {
                       fontFamily: FS,
                       fontSize: 20,
                       fontWeight: 700,
-                      color: pkg.name === "Membership" ? "#fff" : "#1c2e14",
+                      color: !isFree ? "#fff" : "#1c2e14",
                     }}
                   >
                     {pkg.name}
                   </h2>
-                  {pkg.name === "Membership" && (
+                  {!isFree && (
                     <span className="flex items-center gap-1 px-3 py-1 rounded-full text-xs" style={{ background: "#7ab648", color: "#1c2e14", fontWeight: 700 }}>
                       <Crown className="w-3.5 h-3.5" /> Cao cấp
                     </span>
                   )}
                 </div>
 
-                <p className="text-sm leading-relaxed mb-5" style={{ color: pkg.name === "Membership" ? "#c8e6b0" : "#6b7c5e" }}>
+                <p className="text-sm leading-relaxed mb-5" style={{ color: !isFree ? "#c8e6b0" : "#6b7c5e" }}>
                   {pkg.description || "Không có mô tả."}
                 </p>
 
@@ -189,18 +181,18 @@ export default function Packages() {
                         </span>
                       </div>
                       <div className="mt-1">
-                        <span style={{ fontFamily: FS, fontSize: 34, fontWeight: 700, color: pkg.name === "Membership" ? "#7ab648" : "#2d5a27" }}>
+                        <span style={{ fontFamily: FS, fontSize: 34, fontWeight: 700, color: !isFree ? "#7ab648" : "#2d5a27" }}>
                           {discountedMonthlyPrice.toLocaleString("vi-VN")}đ
                         </span>
                         <span style={{ color: "#999", fontSize: 13 }}>/tháng</span>
                       </div>
-                      <p className="text-xs mt-1" style={{ color: pkg.name === "Membership" ? "#c8e6b0" : "#6b7c5e" }}>
-                        Tổng thanh toán cho {months} tháng: <strong style={{ color: pkg.name === "Membership" ? "#7ab648" : "#2d5a27" }}>{discountedTotalPrice.toLocaleString("vi-VN")}đ</strong> (Tiết kiệm {savings.toLocaleString("vi-VN")}đ)
+                      <p className="text-xs mt-1" style={{ color: !isFree ? "#c8e6b0" : "#6b7c5e" }}>
+                        Tổng thanh toán cho {months} tháng: <strong style={{ color: !isFree ? "#7ab648" : "#2d5a27" }}>{discountedTotalPrice.toLocaleString("vi-VN")}đ</strong> (Tiết kiệm {savings.toLocaleString("vi-VN")}đ)
                       </p>
                     </div>
                   ) : (
                     <div>
-                      <span style={{ fontFamily: FS, fontSize: 34, fontWeight: 700, color: pkg.name === "Membership" ? "#7ab648" : "#2d5a27" }}>
+                      <span style={{ fontFamily: FS, fontSize: 34, fontWeight: 700, color: !isFree ? "#7ab648" : "#2d5a27" }}>
                         {isFree ? "Miễn phí" : `${originalMonthlyPrice.toLocaleString("vi-VN")}đ`}
                       </span>
                       {!isFree && <span style={{ color: "#999", fontSize: 13 }}>/tháng</span>}
@@ -209,11 +201,11 @@ export default function Packages() {
                 </div>
 
                 <ul className="space-y-3 mb-8 flex-1">
-                  <li className="flex items-center gap-2.5 text-sm" style={{ color: pkg.name === "Membership" ? "#e6f2dd" : "#3d5c35" }}>
+                  <li className="flex items-center gap-2.5 text-sm" style={{ color: !isFree ? "#e6f2dd" : "#3d5c35" }}>
                     <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: "#7ab648" }} />
                     {limitText(pkg.chat_per_minute, "chat/phút")}
                   </li>
-                  <li className="flex items-center gap-2.5 text-sm" style={{ color: pkg.name === "Membership" ? "#e6f2dd" : "#3d5c35" }}>
+                  <li className="flex items-center gap-2.5 text-sm" style={{ color: !isFree ? "#e6f2dd" : "#3d5c35" }}>
                     {pkg.chat_per_day <= 0 ? (
                       <InfinityIcon className="w-4 h-4 flex-shrink-0" style={{ color: "#7ab648" }} />
                     ) : (
@@ -221,12 +213,12 @@ export default function Packages() {
                     )}
                     {limitText(pkg.chat_per_day, "chat/ngày")}
                   </li>
-                  <li className="flex items-center gap-2.5 text-sm" style={{ color: pkg.name === "Membership" ? "#e6f2dd" : "#3d5c35" }}>
+                  <li className="flex items-center gap-2.5 text-sm" style={{ color: !isFree ? "#e6f2dd" : "#3d5c35" }}>
                     <Users className="w-4 h-4 flex-shrink-0" style={{ color: "#7ab648" }} />
                     {limitText(pkg.community_per_day, "bài/ngày")}
                   </li>
                   {!isFree && (
-                    <li className="flex items-center gap-2.5 text-sm" style={{ color: pkg.name === "Membership" ? "#e6f2dd" : "#3d5c35" }}>
+                    <li className="flex items-center gap-2.5 text-sm" style={{ color: !isFree ? "#e6f2dd" : "#3d5c35" }}>
                       <Check className="w-4 h-4 flex-shrink-0" style={{ color: "#7ab648" }} />
                       Ưu tiên tốc độ phản hồi
                     </li>
@@ -237,7 +229,7 @@ export default function Packages() {
                   <button
                     disabled
                     className="w-full py-3 rounded-xl text-sm font-bold"
-                    style={{ background: style.badge, color: pkg.name === "Membership" ? "#7ab648" : "#2d5a27" }}
+                    style={{ background: style.badge, color: !isFree ? "#7ab648" : "#2d5a27" }}
                   >
                     Gói hiện tại
                   </button>
@@ -245,7 +237,7 @@ export default function Packages() {
                   <button
                     onClick={() => handleSelectPlan(pkg)}
                     className="w-full py-3 rounded-xl text-sm font-bold transition-all"
-                    style={{ background: style.cta, color: pkg.name === "Membership" ? "#1c2e14" : "#fff" }}
+                    style={{ background: style.cta, color: !isFree ? "#1c2e14" : "#fff" }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = style.ctaHover; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = style.cta; }}
                   >

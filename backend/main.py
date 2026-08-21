@@ -365,9 +365,9 @@ def create_package(data: PackageCreate, authorization: Optional[str] = Header(No
     name = data.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Package name is required")
-    existing = db.query(Package).filter(Package.name == name).first()
+    existing = db.query(Package).filter(Package.name == name, Package.duration_months == data.duration_months).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Package name already exists")
+        raise HTTPException(status_code=400, detail="Package with this name and duration already exists")
     package = Package(**data.model_dump())
     db.add(package)
     db.commit()

@@ -69,6 +69,8 @@ PACKAGE_MIGRATION_SQL = [
     'ALTER TABLE packages ADD COLUMN IF NOT EXISTS discount_3m INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE packages ADD COLUMN IF NOT EXISTS discount_6m INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE packages ADD COLUMN IF NOT EXISTS discount_12m INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE packages ADD COLUMN IF NOT EXISTS duration_months INTEGER NOT NULL DEFAULT 1',
+    'ALTER TABLE packages DROP CONSTRAINT IF EXISTS packages_name_key',
     "UPDATE packages SET discount_3m = 5, discount_6m = 10, discount_12m = 15 WHERE name = 'Cơ bản' AND discount_3m = 0",
     "UPDATE packages SET discount_3m = 10, discount_6m = 20, discount_12m = 30 WHERE name = 'Premium' AND discount_3m = 0",
 ]
@@ -105,6 +107,7 @@ DEFAULT_PACKAGES = [
         "discount_3m": 0,
         "discount_6m": 0,
         "discount_12m": 0,
+        "duration_months": 1,
     },
     {
         "name": "Membership",
@@ -116,6 +119,7 @@ DEFAULT_PACKAGES = [
         "discount_3m": 10,
         "discount_6m": 20,
         "discount_12m": 30,
+        "duration_months": 1,
     },
 ]
 
@@ -127,13 +131,13 @@ def ensure_default_packages():
     db = SessionLocal()
     try:
         for pkg in DEFAULT_PACKAGES:
-            exists = db.query(Package).filter(Package.name == pkg["name"]).first()
+            exists = db.query(Package).filter(Package.name == pkg["name"], Package.duration_months == pkg["duration_months"]).first()
             if not exists:
                 db.add(Package(**pkg))
         db.commit()
 
         # Migrate user subscriptions from old plans to Membership and delete old plans
-        membership_pkg = db.query(Package).filter(Package.name == "Membership").first()
+        membership_pkg = db.query(Package).filter(Package.name == "Membership", Package.duration_months == 1).first()
         if membership_pkg:
             old_pkgs = db.query(Package).filter(Package.name.in_(["Cơ bản", "Premium"])).all()
             old_ids = [p.id for p in old_pkgs]
@@ -223,7 +227,7 @@ class PlantDetail(Base):
 class Package(Base):
     __tablename__ = "packages"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), unique=True, nullable=False)
+    name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     monthly_price = Column(Integer, default=0, nullable=False)
     chat_per_minute = Column(Integer, default=5, nullable=False)
@@ -232,6 +236,7 @@ class Package(Base):
     discount_3m = Column(Integer, default=0, nullable=False)
     discount_6m = Column(Integer, default=0, nullable=False)
     discount_12m = Column(Integer, default=0, nullable=False)
+    duration_months = Column(Integer, default=1, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), nullable=False)
     users = relationship("User", back_populates="package")
@@ -366,6 +371,7 @@ class PackageResponse(BaseModel):
     discount_3m: int = 0
     discount_6m: int = 0
     discount_12m: int = 0
+    duration_months: int = 1
     is_active: bool
     created_at: datetime
 
@@ -379,6 +385,7 @@ class PackageCreate(BaseModel):
     discount_3m: int = 0
     discount_6m: int = 0
     discount_12m: int = 0
+    duration_months: int = 1
     is_active: bool = True
 
 class PackageUpdate(BaseModel):
@@ -391,6 +398,7 @@ class PackageUpdate(BaseModel):
     discount_3m: Optional[int] = None
     discount_6m: Optional[int] = None
     discount_12m: Optional[int] = None
+    duration_months: Optional[int] = None
     is_active: Optional[bool] = None
 
 class UserPackageUpdate(BaseModel):

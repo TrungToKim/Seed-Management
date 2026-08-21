@@ -42,6 +42,7 @@ interface PackagePlan {
   chat_per_minute: number;
   chat_per_day: number;
   community_per_day: number;
+  duration_months?: number;
   is_active: boolean;
   created_at: string;
 }
@@ -65,6 +66,7 @@ const emptyPackageForm = {
   discount_3m: 0,
   discount_6m: 0,
   discount_12m: 0,
+  duration_months: 1,
   is_active: true,
 };
 
@@ -274,6 +276,7 @@ export default function Admin() {
       discount_3m: (pkg as any).discount_3m ?? 0,
       discount_6m: (pkg as any).discount_6m ?? 0,
       discount_12m: (pkg as any).discount_12m ?? 0,
+      duration_months: pkg.duration_months ?? 1,
       is_active: pkg.is_active,
     });
     setEditingPackageId(pkg.id);
@@ -691,7 +694,9 @@ export default function Admin() {
                     >
                       <td className="px-6 py-3.5" style={{ color: "#999", fontWeight: 600 }}>{pkg.id}</td>
                       <td className="px-6 py-3.5">
-                        <span style={{ color: "#1c2e14", fontWeight: 700 }}>{pkg.name}</span>
+                        <span style={{ color: "#1c2e14", fontWeight: 700 }}>
+                          {pkg.name} {pkg.duration_months && `(${pkg.duration_months} tháng)`}
+                        </span>
                       </td>
                       <td className="px-6 py-3.5" style={{ color: "#2d5a27", fontWeight: 700 }}>
                         {pkg.monthly_price <= 0 ? "Miễn phí" : `${pkg.monthly_price.toLocaleString("vi-VN")}đ`}
@@ -867,6 +872,20 @@ export default function Admin() {
                     className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
                     style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
                   />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Thời hạn sử dụng (Tháng) *</label>
+                  <select
+                    value={pkgForm.duration_months}
+                    onChange={(e) => setPkgForm({ ...pkgForm, duration_months: Number(e.target.value) })}
+                    className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                    style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14" }}
+                  >
+                    <option value={1}>1 Tháng (Mặc định)</option>
+                    <option value={3}>3 Tháng</option>
+                    <option value={6}>6 Tháng</option>
+                    <option value={12}>12 Tháng</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Mô tả</label>

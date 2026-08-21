@@ -31,6 +31,7 @@ export interface PackagePlan {
   chat_per_minute: number;
   chat_per_day: number;
   community_per_day: number;
+  duration_months?: number;
   is_active: boolean;
   created_at: string;
 }
