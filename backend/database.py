@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text, Column, Integer, String, Text, ForeignKey, Boolean, DateTime
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker, relationship, Session
 from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
