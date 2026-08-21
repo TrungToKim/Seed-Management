@@ -37,7 +37,8 @@ export default function Packages() {
   const getDiscountInfo = (pkg: PackagePlan, dur: DurationType) => {
     const months = pkg.duration_months || (dur === "Free" ? 1 : parseInt(dur)) || 1;
     let discountPercent = 0;
-    if (months === 3) discountPercent = (pkg as any).discount_3m ?? 0;
+    if (months === 1) discountPercent = pkg.discount_1m ?? 0;
+    else if (months === 3) discountPercent = (pkg as any).discount_3m ?? 0;
     else if (months === 6) discountPercent = (pkg as any).discount_6m ?? 0;
     else if (months === 12) discountPercent = (pkg as any).discount_12m ?? 0;
     return { discountPercent, months };

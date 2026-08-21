@@ -69,6 +69,7 @@ PACKAGE_MIGRATION_SQL = [
     'ALTER TABLE packages ADD COLUMN IF NOT EXISTS discount_3m INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE packages ADD COLUMN IF NOT EXISTS discount_6m INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE packages ADD COLUMN IF NOT EXISTS discount_12m INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE packages ADD COLUMN IF NOT EXISTS discount_1m INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE packages ADD COLUMN IF NOT EXISTS duration_months INTEGER NOT NULL DEFAULT 1',
     'ALTER TABLE packages DROP CONSTRAINT IF EXISTS packages_name_key',
     "UPDATE packages SET discount_3m = 5, discount_6m = 10, discount_12m = 15 WHERE name = 'Cơ bản' AND discount_3m = 0",
@@ -104,6 +105,7 @@ DEFAULT_PACKAGES = [
         "chat_per_minute": 5,
         "chat_per_day": 30,
         "community_per_day": 3,
+        "discount_1m": 0,
         "discount_3m": 0,
         "discount_6m": 0,
         "discount_12m": 0,
@@ -116,6 +118,7 @@ DEFAULT_PACKAGES = [
         "chat_per_minute": 30,
         "chat_per_day": 0,
         "community_per_day": 0,
+        "discount_1m": 0,
         "discount_3m": 10,
         "discount_6m": 20,
         "discount_12m": 30,
@@ -236,6 +239,7 @@ class Package(Base):
     discount_3m = Column(Integer, default=0, nullable=False)
     discount_6m = Column(Integer, default=0, nullable=False)
     discount_12m = Column(Integer, default=0, nullable=False)
+    discount_1m = Column(Integer, default=0, nullable=False)
     duration_months = Column(Integer, default=1, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), nullable=False)
@@ -368,6 +372,7 @@ class PackageResponse(BaseModel):
     chat_per_minute: int
     chat_per_day: int
     community_per_day: int
+    discount_1m: int = 0
     discount_3m: int = 0
     discount_6m: int = 0
     discount_12m: int = 0
@@ -382,6 +387,7 @@ class PackageCreate(BaseModel):
     chat_per_minute: int = 5
     chat_per_day: int = 30
     community_per_day: int = 3
+    discount_1m: int = 0
     discount_3m: int = 0
     discount_6m: int = 0
     discount_12m: int = 0
@@ -395,6 +401,7 @@ class PackageUpdate(BaseModel):
     chat_per_minute: Optional[int] = None
     chat_per_day: Optional[int] = None
     community_per_day: Optional[int] = None
+    discount_1m: Optional[int] = None
     discount_3m: Optional[int] = None
     discount_6m: Optional[int] = None
     discount_12m: Optional[int] = None

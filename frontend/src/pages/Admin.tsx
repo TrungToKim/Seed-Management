@@ -43,6 +43,7 @@ interface PackagePlan {
   chat_per_day: number;
   community_per_day: number;
   duration_months?: number;
+  discount_1m?: number;
   is_active: boolean;
   created_at: string;
 }
@@ -63,6 +64,7 @@ const emptyPackageForm = {
   chat_per_minute: 5,
   chat_per_day: 30,
   community_per_day: 3,
+  discount_1m: 0,
   discount_3m: 0,
   discount_6m: 0,
   discount_12m: 0,
@@ -275,6 +277,7 @@ export default function Admin() {
       chat_per_minute: pkg.chat_per_minute,
       chat_per_day: pkg.chat_per_day,
       community_per_day: pkg.community_per_day,
+      discount_1m: pkg.discount_1m ?? 0,
       discount_3m: (pkg as any).discount_3m ?? 0,
       discount_6m: (pkg as any).discount_6m ?? 0,
       discount_12m: (pkg as any).discount_12m ?? 0,
@@ -310,7 +313,8 @@ export default function Admin() {
       try {
         for (const dur of selectedDurations) {
           let price = pkgForm.monthly_price;
-          if (dur === 3) price = Math.round(pkgForm.monthly_price * (1 - (pkgForm.discount_3m || 0) / 100));
+          if (dur === 1) price = Math.round(pkgForm.monthly_price * (1 - (pkgForm.discount_1m || 0) / 100));
+          else if (dur === 3) price = Math.round(pkgForm.monthly_price * (1 - (pkgForm.discount_3m || 0) / 100));
           else if (dur === 6) price = Math.round(pkgForm.monthly_price * (1 - (pkgForm.discount_6m || 0) / 100));
           else if (dur === 12) price = Math.round(pkgForm.monthly_price * (1 - (pkgForm.discount_12m || 0) / 100));
 
@@ -706,7 +710,7 @@ export default function Admin() {
               <table className="w-full" style={{ borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "#faf5f0" }}>
-                    {["ID", "Tên gói", "Giá/tháng", "Chat/phút", "Chat/ngày", "Bài/ngày", "Giảm 3T/6T/12T", "Trạng thái", "Thao tác"].map((h) => (
+                    {["ID", "Tên gói", "Giá/tháng", "Chat/phút", "Chat/ngày", "Bài/ngày", "Giảm 1T/3T/6T/12T", "Trạng thái", "Thao tác"].map((h) => (
                       <th
                         key={h}
                         className="px-6 py-3 text-left text-xs uppercase tracking-wider whitespace-nowrap"
@@ -742,7 +746,7 @@ export default function Admin() {
                       <td className="px-6 py-3.5" style={{ color: "#5a6e52" }}>{pkg.chat_per_day <= 0 ? "∞" : pkg.chat_per_day}</td>
                       <td className="px-6 py-3.5" style={{ color: "#5a6e52" }}>{pkg.community_per_day <= 0 ? "∞" : pkg.community_per_day}</td>
                       <td className="px-6 py-3.5" style={{ color: "#5a6e52", fontWeight: 600 }}>
-                        {pkg.name === "Miễn phí" ? "—" : `${(pkg as any).discount_3m ?? 0}% / ${(pkg as any).discount_6m ?? 0}% / ${(pkg as any).discount_12m ?? 0}%`}
+                        {pkg.name === "Miễn phí" ? "—" : `${pkg.discount_1m ?? 0}% / ${(pkg as any).discount_3m ?? 0}% / ${(pkg as any).discount_6m ?? 0}% / ${(pkg as any).discount_12m ?? 0}%`}
                       </td>
                       <td className="px-6 py-3.5">
                         <span
@@ -1013,9 +1017,21 @@ export default function Admin() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <div>
-                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Giảm giá 3T (%)</label>
+                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Giảm 1T (%)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={pkgForm.discount_1m}
+                      onChange={(e) => setPkgForm({ ...pkgForm, discount_1m: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                      style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Giảm 3T (%)</label>
                     <input
                       type="number"
                       min={0}
@@ -1027,7 +1043,7 @@ export default function Admin() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Giảm giá 6T (%)</label>
+                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Giảm 6T (%)</label>
                     <input
                       type="number"
                       min={0}
@@ -1039,7 +1055,7 @@ export default function Admin() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Giảm giá 12T (%)</label>
+                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Giảm 12T (%)</label>
                     <input
                       type="number"
                       min={0}
