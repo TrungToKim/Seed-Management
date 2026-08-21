@@ -8,8 +8,7 @@ const FS = "'Playfair Display', Georgia, serif";
 
 const TIER_STYLES: Record<string, { bg: string; border: string; badge: string; cta: string; ctaHover: string }> = {
   "Miễn phí": { bg: "#fff", border: "#e4ddd0", badge: "#f5f0e8", cta: "#eaf0e4", ctaHover: "#d7e8cd" },
-  "Cơ bản": { bg: "#fff", border: "#7ab648", badge: "#eaf0e4", cta: "#2d5a27", ctaHover: "#1e3f1a" },
-  "Premium": { bg: "#1c2e14", border: "#7ab648", badge: "#2e4a24", cta: "#7ab648", ctaHover: "#5e9a32" },
+  "Hội Viên": { bg: "#fff", border: "#7ab648", badge: "#eaf0e4", cta: "#2d5a27", ctaHover: "#1e3f1a" },
 };
 
 function limitText(value: number, suffix: string) {
