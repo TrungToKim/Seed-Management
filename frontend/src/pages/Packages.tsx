@@ -175,7 +175,7 @@ export default function Packages() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span style={{ color: "#999", textDecoration: "line-through", fontSize: 16 }}>
-                          {originalMonthlyPrice.toLocaleString("vi-VN")}đ
+                          {originalTotalPrice.toLocaleString("vi-VN")}đ
                         </span>
                         <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: "#fdeeee", color: "#c0392b" }}>
                           Giảm {discountPercent}%
@@ -183,20 +183,27 @@ export default function Packages() {
                       </div>
                       <div className="mt-1">
                         <span style={{ fontFamily: FS, fontSize: 34, fontWeight: 700, color: !isFree ? "#7ab648" : "#2d5a27" }}>
-                          {discountedMonthlyPrice.toLocaleString("vi-VN")}đ
+                          {discountedTotalPrice.toLocaleString("vi-VN")}đ
                         </span>
-                        <span style={{ color: "#999", fontSize: 13 }}>/tháng</span>
+                        <span style={{ color: "#999", fontSize: 13 }}>/ {months} tháng</span>
                       </div>
                       <p className="text-xs mt-1" style={{ color: !isFree ? "#c8e6b0" : "#6b7c5e" }}>
-                        Tổng thanh toán cho {months} tháng: <strong style={{ color: !isFree ? "#7ab648" : "#2d5a27" }}>{discountedTotalPrice.toLocaleString("vi-VN")}đ</strong> (Tiết kiệm {savings.toLocaleString("vi-VN")}đ)
+                        Giá gốc: {discountedMonthlyPrice.toLocaleString("vi-VN")}đ/tháng (Tiết kiệm {savings.toLocaleString("vi-VN")}đ)
                       </p>
                     </div>
                   ) : (
                     <div>
-                      <span style={{ fontFamily: FS, fontSize: 34, fontWeight: 700, color: !isFree ? "#7ab648" : "#2d5a27" }}>
-                        {isFree ? "Miễn phí" : `${originalMonthlyPrice.toLocaleString("vi-VN")}đ`}
-                      </span>
-                      {!isFree && <span style={{ color: "#999", fontSize: 13 }}>/tháng</span>}
+                      <div className="mt-1">
+                        <span style={{ fontFamily: FS, fontSize: 34, fontWeight: 700, color: !isFree ? "#7ab648" : "#2d5a27" }}>
+                          {isFree ? "Miễn phí" : `${originalTotalPrice.toLocaleString("vi-VN")}đ`}
+                        </span>
+                        {!isFree && <span style={{ color: "#999", fontSize: 13 }}>/ {months} tháng</span>}
+                      </div>
+                      {!isFree && (
+                        <p className="text-xs mt-1" style={{ color: !isFree ? "#c8e6b0" : "#6b7c5e" }}>
+                          Giá gốc: {originalMonthlyPrice.toLocaleString("vi-VN")}đ/tháng
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
