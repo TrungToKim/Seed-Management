@@ -102,22 +102,20 @@ DEFAULT_PACKAGES = [
         "chat_per_minute": 5,
         "chat_per_day": 30,
         "community_per_day": 3,
+        "discount_3m": 0,
+        "discount_6m": 0,
+        "discount_12m": 0,
     },
     {
-        "name": "Cơ bản",
-        "description": "Gói phổ biến cho người dùng thường xuyên, tăng gấp đôi lượt hỏi đáp AI.",
-        "monthly_price": 50000,
-        "chat_per_minute": 10,
-        "chat_per_day": 100,
-        "community_per_day": 10,
-    },
-    {
-        "name": "Premium",
-        "description": "Gói cao cấp, không giới hạn lượt chat trong ngày và ưu tiên tốc độ phản hồi.",
-        "monthly_price": 150000,
+        "name": "Membership",
+        "description": "Gói thành viên chính thức. Không giới hạn hỏi đáp AI và bài đăng cộng đồng.",
+        "monthly_price": 100000,
         "chat_per_minute": 30,
         "chat_per_day": 0,
-        "community_per_day": 50,
+        "community_per_day": 0,
+        "discount_3m": 10,
+        "discount_6m": 20,
+        "discount_12m": 30,
     },
 ]
 
@@ -133,6 +131,16 @@ def ensure_default_packages():
             if not exists:
                 db.add(Package(**pkg))
         db.commit()
+
+        # Migrate user subscriptions from old plans to Membership and delete old plans
+        membership_pkg = db.query(Package).filter(Package.name == "Membership").first()
+        if membership_pkg:
+            old_pkgs = db.query(Package).filter(Package.name.in_(["Cơ bản", "Premium"])).all()
+            old_ids = [p.id for p in old_pkgs]
+            if old_ids:
+                db.query(User).filter(User.package_id.in_(old_ids)).update({User.package_id: membership_pkg.id}, synchronize_session=False)
+                db.query(Package).filter(Package.id.in_(old_ids)).delete(synchronize_session=False)
+                db.commit()
     except Exception as e:
         print(f"Warning: Could not seed default packages: {e}")
     finally:
