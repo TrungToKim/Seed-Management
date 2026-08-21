@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { apiFetch } from "../api";
 import {
   ArrowRight, TreeDeciduous, Flower2,
-  Sprout, Search, BookOpen, Shield, Droplets, Sun, Tag as TagIcon,
+  Sprout, Search, BookOpen, Shield, Droplets, Sun, Tag as TagIcon, MessageCircle,
 } from "lucide-react";
 
 const FS = "'Playfair Display', Georgia, serif";

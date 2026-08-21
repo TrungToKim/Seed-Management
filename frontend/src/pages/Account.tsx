@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { apiFetch, apiFetchRaw, type AuthUser, getAvatarUrl } from "../api";
+import { apiFetchRaw, type AuthUser, getAvatarUrl } from "../api";
 import { useAuth } from "../useAuth";
 import { Loader, Save, Eye, EyeOff, Camera, AlertCircle, CheckCircle } from "lucide-react";
 
 const FS = "'Playfair Display', Georgia, serif";
-const FF = "'Nunito', system-ui, sans-serif";
 
 export default function Account() {
   const { user, token, logout } = useAuth();
@@ -20,6 +19,7 @@ export default function Account() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [activeTab, setActiveTab] = useState("profile");
 
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ message, type });
@@ -161,8 +161,6 @@ export default function Account() {
     { id: "avatar", label: "Ảnh đại diện", icon: <Camera className="w-4 h-4" /> },
   ];
 
-  const [activeTab, setActiveTab] = useState("profile");
-
   return (
     <div className="px-6 py-12 max-w-[1280px] mx-auto">
       <div className="mb-10">
@@ -241,69 +239,71 @@ export default function Account() {
                 <h2 style={{ fontFamily: FS, fontSize: 22, fontWeight: 700, color: "#1c2e14" }}>Thông tin cá nhân</h2>
               </div>
 
-            <div className="space-y-5 max-w-xl">
-              <div>
-                <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Tên người dùng</label>
-                <input
-                  type="text"
-                  name="username"
-                  value={profile.username || ""}
-                  onChange={handleProfileChange}
-                  className="w-full px-4 py-3 rounded-xl text-base focus:outline-none"
-                  style={{ background: "#fafafa", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = "#7ab648")}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = "#e4ddd0")}
-                />
-              </div>
+              <div className="space-y-5 max-w-xl">
+                <div>
+                  <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Tên người dùng</label>
+                  <input
+                    type="text"
+                    name="username"
+                    value={profile.username || ""}
+                    onChange={handleProfileChange}
+                    className="w-full px-4 py-3 rounded-xl text-base focus:outline-none"
+                    style={{ background: "#fafafa", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                    onFocus={(e) => (e.currentTarget.style.borderColor = "#7ab648")}
+                    onBlur={(e) => (e.currentTarget.style.borderColor = "#e4ddd0")}
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Email</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={profile.email || ""}
-                  onChange={handleProfileChange}
-                  className="w-full px-4 py-3 rounded-xl text-base focus:outline-none"
-                  style={{ background: "#fafafa", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = "#7ab648")}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = "#e4ddd0")}
-                />
-              </div>
+                <div>
+                  <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={profile.email || ""}
+                    onChange={handleProfileChange}
+                    className="w-full px-4 py-3 rounded-xl text-base focus:outline-none"
+                    style={{ background: "#fafafa", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                    onFocus={(e) => (e.currentTarget.style.borderColor = "#7ab648")}
+                    onBlur={(e) => (e.currentTarget.style.borderColor = "#e4ddd0")}
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Họ và tên</label>
-                <input
-                  type="text"
-                  name="full_name"
-                  value={profile.full_name || ""}
-                  onChange={handleProfileChange}
-                  placeholder="Nhập họ và tên"
-                  className="w-full px-4 py-3 rounded-xl text-base focus:outline-none"
-                  style={{ background: "#fafafa", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = "#7ab648")}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = "#e4ddd0")}
-                />
-              </div>
+                <div>
+                  <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Họ và tên</label>
+                  <input
+                    type="text"
+                    name="full_name"
+                    value={profile.full_name || ""}
+                    onChange={handleProfileChange}
+                    placeholder="Nhập họ và tên"
+                    className="w-full px-4 py-3 rounded-xl text-base focus:outline-none"
+                    style={{ background: "#fafafa", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                    onFocus={(e) => (e.currentTarget.style.borderColor = "#7ab648")}
+                    onBlur={(e) => (e.currentTarget.style.borderColor = "#e4ddd0")}
+                  />
+                </div>
 
-              <button
-                onClick={saveProfile}
-                disabled={saving}
-                className="w-full md:w-auto mt-2 px-6 py-3 rounded-xl text-sm font-bold transition-all"
-                style={{ background: "#2d5a27", color: "#fff" }}
-                onMouseEnter={(e) => { if (!saving) e.currentTarget.style.background = "#1e3f1a"; }}
-                onMouseLeave={(e) => { if (!saving) e.currentTarget.style.background = "#2d5a27"; }}
-              >
-                {saving ? (
-                  <>
-                    <Loader className="w-4 h-4 animate-spin inline mr-2" />
-                    Đang lưu...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 inline mr-2" />
-                    Lưu thay đổi
-                  </>
-                )}
+                <button
+                  onClick={saveProfile}
+                  disabled={saving}
+                  className="w-full md:w-auto mt-2 px-6 py-3 rounded-xl text-sm font-bold transition-all"
+                  style={{ background: "#2d5a27", color: "#fff" }}
+                  onMouseEnter={(e) => { if (!saving) e.currentTarget.style.background = "#1e3f1a"; }}
+                  onMouseLeave={(e) => { if (!saving) e.currentTarget.style.background = "#2d5a27"; }}
+                >
+                  {saving ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin inline mr-2" />
+                      Đang lưu...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 inline mr-2" />
+                      Lưu thay đổi
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           )}
 
@@ -312,96 +312,97 @@ export default function Account() {
             <div className="rounded-3xl p-6 md:p-8" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
               <h2 style={{ fontFamily: FS, fontSize: 22, fontWeight: 700, color: "#1c2e14", marginBottom: 24 }}>Đổi mật khẩu</h2>
 
-            <div className="space-y-5 max-w-xl">
-              <div>
-                <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Mật khẩu hiện tại</label>
-                <div className="relative">
-                  <input
-                    type={showCurrent ? "text" : "password"}
-                    value={passwordData.current}
-                    onChange={(e) => setPasswordData({ ...passwordData, current: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl text-base focus:outline-none pr-12"
-                    style={{ background: "#fafafa", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
-                    onFocus={(e) => (e.currentTarget.style.borderColor = "#7ab648")}
-                    onBlur={(e) => (e.currentTarget.style.borderColor = "#e4ddd0")}
-                    placeholder="Nhập mật khẩu hiện tại"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrent(!showCurrent)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showCurrent ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
+              <div className="space-y-5 max-w-xl">
+                <div>
+                  <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Mật khẩu hiện tại</label>
+                  <div className="relative">
+                    <input
+                      type={showCurrent ? "text" : "password"}
+                      value={passwordData.current}
+                      onChange={(e) => setPasswordData({ ...passwordData, current: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl text-base focus:outline-none pr-12"
+                      style={{ background: "#fafafa", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                      onFocus={(e) => (e.currentTarget.style.borderColor = "#7ab648")}
+                      onBlur={(e) => (e.currentTarget.style.borderColor = "#e4ddd0")}
+                      placeholder="Nhập mật khẩu hiện tại"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrent(!showCurrent)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showCurrent ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Mật khẩu mới</label>
-                <div className="relative">
-                  <input
-                    type={showNew ? "text" : "password"}
-                    value={passwordData.new}
-                    onChange={(e) => setPasswordData({ ...passwordData, new: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl text-base focus:outline-none pr-12"
-                    style={{ background: "#fafafa", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
-                    onFocus={(e) => (e.currentTarget.style.borderColor = "#7ab648")}
-                    onBlur={(e) => (e.currentTarget.style.borderColor = "#e4ddd0")}
-                    placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNew(!showNew)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showNew ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
+                <div>
+                  <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Mật khẩu mới</label>
+                  <div className="relative">
+                    <input
+                      type={showNew ? "text" : "password"}
+                      value={passwordData.new}
+                      onChange={(e) => setPasswordData({ ...passwordData, new: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl text-base focus:outline-none pr-12"
+                      style={{ background: "#fafafa", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                      onFocus={(e) => (e.currentTarget.style.borderColor = "#7ab648")}
+                      onBlur={(e) => (e.currentTarget.style.borderColor = "#e4ddd0")}
+                      placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNew(!showNew)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showNew ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Xác nhận mật khẩu mới</label>
-                <div className="relative">
-                  <input
-                    type={showConfirm ? "text" : "password"}
-                    value={passwordData.confirm}
-                    onChange={(e) => setPasswordData({ ...passwordData, confirm: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl text-base focus:outline-none pr-12"
-                    style={{ background: "#fafafa", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
-                    onFocus={(e) => (e.currentTarget.style.borderColor = "#7ab648")}
-                    onBlur={(e) => (e.currentTarget.style.borderColor = "#e4ddd0")}
-                    placeholder="Nhập lại mật khẩu mới"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirm(!showConfirm)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
+                <div>
+                  <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Xác nhận mật khẩu mới</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirm ? "text" : "password"}
+                      value={passwordData.confirm}
+                      onChange={(e) => setPasswordData({ ...passwordData, confirm: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl text-base focus:outline-none pr-12"
+                      style={{ background: "#fafafa", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                      onFocus={(e) => (e.currentTarget.style.borderColor = "#7ab648")}
+                      onBlur={(e) => (e.currentTarget.style.borderColor = "#e4ddd0")}
+                      placeholder="Nhập lại mật khẩu mới"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm(!showConfirm)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              <button
-                onClick={changePassword}
-                disabled={passwordSaving}
-                className="w-full md:w-auto mt-2 px-6 py-3 rounded-xl text-sm font-bold transition-all"
-                style={{ background: "#2d5a27", color: "#fff" }}
-                onMouseEnter={(e) => { if (!passwordSaving) e.currentTarget.style.background = "#1e3f1a"; }}
-                onMouseLeave={(e) => { if (!passwordSaving) e.currentTarget.style.background = "#2d5a27"; }}
-              >
-                {passwordSaving ? (
-                  <>
-                    <Loader className="w-4 h-4 animate-spin inline mr-2" />
-                    Đang xử lý...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 inline mr-2" />
-                    Đổi mật khẩu
-                  </>
-                )}
-              </button>
+                <button
+                  onClick={changePassword}
+                  disabled={passwordSaving}
+                  className="w-full md:w-auto mt-2 px-6 py-3 rounded-xl text-sm font-bold transition-all"
+                  style={{ background: "#2d5a27", color: "#fff" }}
+                  onMouseEnter={(e) => { if (!passwordSaving) e.currentTarget.style.background = "#1e3f1a"; }}
+                  onMouseLeave={(e) => { if (!passwordSaving) e.currentTarget.style.background = "#2d5a27"; }}
+                >
+                  {passwordSaving ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin inline mr-2" />
+                      Đang xử lý...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 inline mr-2" />
+                      Đổi mật khẩu
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           )}
 
@@ -422,48 +423,49 @@ export default function Account() {
                         (profile.full_name || user.username).slice(0, 1).toUpperCase()
                       )}
                     </div>
-                  <label className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-transform hover:scale-110" style={{ background: "#2d5a27", boxShadow: "0 4px 12px rgba(45,90,39,0.3)" }}>
-                    <Camera className="w-4 h-4 text-white" />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                    />
-                  </label>
+                    <label className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-transform hover:scale-110" style={{ background: "#2d5a27", boxShadow: "0 4px 12px rgba(45,90,39,0.3)" }}>
+                      <Camera className="w-4 h-4 text-white" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarChange}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                      />
+                    </label>
+                  </div>
+                  <div>
+                    <p style={{ color: "#3d5c35", fontWeight: 600, fontSize: 15 }}>Ảnh đại diện hiện tại</p>
+                    <p className="text-sm mt-1" style={{ color: "#6b7c5e" }}>Chọn ảnh mới để cập nhật (tối đa 2MB, định dạng JPG/PNG)</p>
+                  </div>
                 </div>
-                <div>
-                  <p style={{ color: "#3d5c35", fontWeight: 600, fontSize: 15 }}>Ảnh đại diện hiện tại</p>
-                  <p className="text-sm mt-1" style={{ color: "#6b7c5e" }}>Chọn ảnh mới để cập nhật (tối đa 2MB, định dạng JPG/PNG)</p>
-                </div>
-              </div>
 
-              <button
-                onClick={saveProfile}
-                disabled={saving || !avatarFile}
-                className="px-6 py-3 rounded-xl text-sm font-bold transition-all"
-                style={{ background: avatarFile ? "#2d5a27" : "#e4ddd0", color: avatarFile ? "#fff" : "#999" }}
-                onMouseEnter={(e) => { if (!saving && avatarFile) e.currentTarget.style.background = "#1e3f1a"; }}
-                onMouseLeave={(e) => { if (!saving && avatarFile) e.currentTarget.style.background = "#2d5a27"; }}
-              >
-                {saving ? (
-                  <>
-                    <Loader className="w-4 h-4 animate-spin inline mr-2" />
-                    Đang lưu...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 inline mr-2" />
-                    Cập nhật ảnh đại diện
-                  </>
+                <button
+                  onClick={saveProfile}
+                  disabled={saving || !avatarFile}
+                  className="px-6 py-3 rounded-xl text-sm font-bold transition-all"
+                  style={{ background: avatarFile ? "#2d5a27" : "#e4ddd0", color: avatarFile ? "#fff" : "#999" }}
+                  onMouseEnter={(e) => { if (!saving && avatarFile) e.currentTarget.style.background = "#1e3f1a"; }}
+                  onMouseLeave={(e) => { if (!saving && avatarFile) e.currentTarget.style.background = "#2d5a27"; }}
+                >
+                  {saving ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin inline mr-2" />
+                      Đang lưu...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 inline mr-2" />
+                      Cập nhật ảnh đại diện
+                    </>
+                  )}
+                </button>
+
+                {profile.avatar_url && (
+                  <p className="text-sm" style={{ color: "#6b7c5e" }}>
+                    Ảnh hiện tại: <a href={getAvatarUrl(profile.avatar_url)} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "#2d5a27" }}>Xem ảnh gốc</a>
+                  </p>
                 )}
-              </button>
-
-              {profile.avatar_url && (
-                <p className="text-sm" style={{ color: "#6b7c5e" }}>
-                  Ảnh hiện tại: <a href={profile.avatar_url} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "#2d5a27" }}>Xem ảnh gốc</a>
-                </p>
-              )}
+              </div>
             </div>
           )}
         </div>
