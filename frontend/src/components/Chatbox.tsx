@@ -14,24 +14,11 @@ interface Message {
   liked?: boolean | null;
 }
 
-interface Conversation {
-  id: string;
-  title: string;
-  lastMessage: string;
-  timestamp: Date;
-}
-
 const SUGGESTED_PROMPTS = [
   { icon: Leaf, label: "Cây thuốc chữa bệnh", prompt: "Những cây thuốc dân gian Việt Nam chữa bệnh đường hô hấp?" },
   { icon: BookOpen, label: "Tra cứu dược liệu", prompt: "Công dụng và bài thuốc của cây nhàu?" },
   { icon: Search, label: "Cách sử dụng", prompt: "Cách sắc thuốc và liều dùng cây xạ đen?" },
   { icon: Droplets, label: "Cây đặc hữu", prompt: "Những loại cây thuốc đặc hữu của Việt Nam là gì?" },
-];
-
-const INIT_CONVERSATIONS: Conversation[] = [
-  { id: "1", title: "Cây thuốc chữa đau dạ dày", lastMessage: "Một số cây thuốc phổ biến...", timestamp: new Date(Date.now() - 3600000) },
-  { id: "2", title: "Bài thuốc trị cảm cúm", lastMessage: "Cảm cúm thường dùng...", timestamp: new Date(Date.now() - 86400000) },
-  { id: "3", title: "Cây sâm ngọc linh", lastMessage: "Sâm ngọc linh là đặc sản...", timestamp: new Date(Date.now() - 172800000) },
 ];
 
 export default function ChatBot() {
@@ -47,11 +34,25 @@ export default function ChatBot() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [conversations] = useState<Conversation[]>(INIT_CONVERSATIONS);
-  const [activeConvo, setActiveConvo] = useState<string | null>(null);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const idCounter = useRef(0);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("tv_chat_search_history");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as string[];
+        const hasMembership = !!user && user.role !== "customer";
+        const historyLimit = hasMembership ? 10 : 5;
+        const trimmed = parsed.slice(0, historyLimit);
+        setSearchHistory(trimmed);
+      } catch {
+        setSearchHistory([]);
+      }
+    }
+  }, [user]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -61,6 +62,16 @@ export default function ChatBot() {
     const value = (text ?? input).trim();
     if (!value || loading) return;
     setInput("");
+
+    // Save to search history
+    const hasMembership = !!user && user.role !== "customer";
+    const historyLimit = hasMembership ? 10 : 5;
+    setSearchHistory((prev) => {
+      const filtered = prev.filter((item) => item !== value);
+      const updated = [value, ...filtered].slice(0, historyLimit);
+      localStorage.setItem("tv_chat_search_history", JSON.stringify(updated));
+      return updated;
+    });
 
     const userMsg: Message = {
       id: `m${++idCounter.current}`,
@@ -125,7 +136,6 @@ export default function ChatBot() {
 
   function newChat() {
     setMessages([{ id: "init", role: "assistant", content: "Xin chào! Tôi là **Thực Vật Bot**, trợ lý AI tra cứu cây thuốc Việt Nam. Tôi có thể giúp bạn tra cứu công dụng, bài thuốc dân gian và cách sử dụng các loại cây thuốc.\n\nBạn muốn hỏi gì về cây thuốc hôm nay?", sources: [], timestamp: new Date() }]);
-    setActiveConvo(null);
     setInput("");
   }
 
@@ -169,23 +179,26 @@ export default function ChatBot() {
         </div>
 
         <div className="px-4 pb-2">
-          <p className="text-xs uppercase tracking-widest" style={{ color: "#8fae83", fontWeight: 700 }}>Gần đây</p>
+          <p className="text-xs uppercase tracking-widest" style={{ color: "#8fae83", fontWeight: 700 }}>Lịch sử tìm kiếm</p>
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-1">
-          {conversations.map((c) => (
+          {searchHistory.map((query, index) => (
             <button
-              key={c.id}
-              onClick={() => setActiveConvo(c.id)}
-              className="w-full text-left px-3 py-2.5 rounded-lg transition-colors group"
-              style={{ background: activeConvo === c.id ? "#2d5a27" : "transparent" }}
-              onMouseEnter={(e) => { if (activeConvo !== c.id) e.currentTarget.style.background = "#264a20"; }}
-              onMouseLeave={(e) => { if (activeConvo !== c.id) e.currentTarget.style.background = "transparent"; }}
+              key={index}
+              onClick={() => { setInput(query); send(query); }}
+              className="w-full text-left px-3 py-2 rounded-lg transition-colors group flex items-center gap-2"
+              style={{ background: "transparent" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#264a20")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <p className="text-sm truncate" style={{ color: "#e6f2dd", fontWeight: activeConvo === c.id ? 600 : 400 }}>{c.title}</p>
-              <p className="text-xs truncate mt-0.5" style={{ color: "#8fae83" }}>{c.lastMessage}</p>
+              <Search className="w-3.5 h-3.5 text-[#8fae83] flex-shrink-0" />
+              <p className="text-sm truncate text-[#e6f2dd]" title={query}>{query}</p>
             </button>
           ))}
+          {searchHistory.length === 0 && (
+            <p className="text-xs text-[#8fae83] px-3 py-2 italic">Chưa có lịch sử</p>
+          )}
         </div>
 
         <div className="p-4 border-t" style={{ borderColor: "#2e4a24" }}>

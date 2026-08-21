@@ -40,17 +40,17 @@ export default function Packages() {
       .finally(() => setLoading(false));
   }, []);
 
-  const getDiscountInfo = (pkgName: string, dur: DurationType) => {
-    if (dur === "Free" || pkgName === "Miễn phí") return { discountPercent: 0, months: 1 };
+  const getDiscountInfo = (pkg: PackagePlan, dur: DurationType) => {
+    if (dur === "Free" || pkg.name === "Miễn phí") return { discountPercent: 0, months: 1 };
     const months = parseInt(dur);
     if (dur === "3") {
-      return { discountPercent: pkgName === "Premium" ? 10 : 5, months };
+      return { discountPercent: (pkg as any).discount_3m ?? 0, months };
     }
     if (dur === "6") {
-      return { discountPercent: pkgName === "Premium" ? 20 : 10, months };
+      return { discountPercent: (pkg as any).discount_6m ?? 0, months };
     }
     if (dur === "12") {
-      return { discountPercent: pkgName === "Premium" ? 30 : 15, months };
+      return { discountPercent: (pkg as any).discount_12m ?? 0, months };
     }
     return { discountPercent: 0, months: 1 };
   };
@@ -143,7 +143,7 @@ export default function Packages() {
             const isCurrent = user?.package_id === pkg.id;
             const isFree = pkg.monthly_price <= 0;
             
-            const { discountPercent, months } = getDiscountInfo(pkg.name, duration);
+            const { discountPercent, months } = getDiscountInfo(pkg, duration);
             const originalMonthlyPrice = pkg.monthly_price;
             const discountedMonthlyPrice = originalMonthlyPrice * (1 - discountPercent / 100);
             const originalTotalPrice = originalMonthlyPrice * months;
@@ -277,7 +277,7 @@ export default function Packages() {
             {/* Modal Body */}
             <div className="p-6 space-y-6">
               {(() => {
-                const { discountPercent, months } = getDiscountInfo(selectedPkg.name, duration);
+                const { discountPercent, months } = getDiscountInfo(selectedPkg, duration);
                 const originalMonthlyPrice = selectedPkg.monthly_price;
                 const discountedMonthlyPrice = originalMonthlyPrice * (1 - discountPercent / 100);
                 const discountedTotalPrice = discountedMonthlyPrice * months;

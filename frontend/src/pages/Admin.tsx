@@ -62,6 +62,9 @@ const emptyPackageForm = {
   chat_per_minute: 5,
   chat_per_day: 30,
   community_per_day: 3,
+  discount_3m: 0,
+  discount_6m: 0,
+  discount_12m: 0,
   is_active: true,
 };
 
@@ -268,6 +271,9 @@ export default function Admin() {
       chat_per_minute: pkg.chat_per_minute,
       chat_per_day: pkg.chat_per_day,
       community_per_day: pkg.community_per_day,
+      discount_3m: (pkg as any).discount_3m ?? 0,
+      discount_6m: (pkg as any).discount_6m ?? 0,
+      discount_12m: (pkg as any).discount_12m ?? 0,
       is_active: pkg.is_active,
     });
     setEditingPackageId(pkg.id);
@@ -660,7 +666,7 @@ export default function Admin() {
               <table className="w-full" style={{ borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "#faf5f0" }}>
-                    {["ID", "Tên gói", "Giá/tháng", "Chat/phút", "Chat/ngày", "Bài/ngày", "Trạng thái", "Thao tác"].map((h) => (
+                    {["ID", "Tên gói", "Giá/tháng", "Chat/phút", "Chat/ngày", "Bài/ngày", "Giảm 3T/6T/12T", "Trạng thái", "Thao tác"].map((h) => (
                       <th
                         key={h}
                         className="px-6 py-3 text-left text-xs uppercase tracking-wider whitespace-nowrap"
@@ -693,6 +699,9 @@ export default function Admin() {
                       <td className="px-6 py-3.5" style={{ color: "#5a6e52" }}>{pkg.chat_per_minute <= 0 ? "∞" : pkg.chat_per_minute}</td>
                       <td className="px-6 py-3.5" style={{ color: "#5a6e52" }}>{pkg.chat_per_day <= 0 ? "∞" : pkg.chat_per_day}</td>
                       <td className="px-6 py-3.5" style={{ color: "#5a6e52" }}>{pkg.community_per_day <= 0 ? "∞" : pkg.community_per_day}</td>
+                      <td className="px-6 py-3.5" style={{ color: "#5a6e52", fontWeight: 600 }}>
+                        {pkg.name === "Miễn phí" ? "—" : `${(pkg as any).discount_3m ?? 0}% / ${(pkg as any).discount_6m ?? 0}% / ${(pkg as any).discount_12m ?? 0}%`}
+                      </td>
                       <td className="px-6 py-3.5">
                         <span
                           className="px-2.5 py-1 rounded-full text-xs font-semibold"
@@ -910,6 +919,45 @@ export default function Admin() {
                       min={0}
                       value={pkgForm.community_per_day}
                       onChange={(e) => setPkgForm({ ...pkgForm, community_per_day: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                      style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Giảm giá 3T (%)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={pkgForm.discount_3m}
+                      onChange={(e) => setPkgForm({ ...pkgForm, discount_3m: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                      style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Giảm giá 6T (%)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={pkgForm.discount_6m}
+                      onChange={(e) => setPkgForm({ ...pkgForm, discount_6m: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                      style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Giảm giá 12T (%)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={pkgForm.discount_12m}
+                      onChange={(e) => setPkgForm({ ...pkgForm, discount_12m: Number(e.target.value) })}
                       className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
                       style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
                     />

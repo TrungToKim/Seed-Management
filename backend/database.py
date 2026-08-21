@@ -66,6 +66,11 @@ PACKAGE_MIGRATION_SQL = [
         ALTER TABLE users ADD CONSTRAINT fk_users_package_id FOREIGN KEY (package_id) REFERENCES packages(id);
       END IF;
     END $$;""",
+    'ALTER TABLE packages ADD COLUMN IF NOT EXISTS discount_3m INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE packages ADD COLUMN IF NOT EXISTS discount_6m INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE packages ADD COLUMN IF NOT EXISTS discount_12m INTEGER NOT NULL DEFAULT 0',
+    "UPDATE packages SET discount_3m = 5, discount_6m = 10, discount_12m = 15 WHERE name = 'Cơ bản' AND discount_3m = 0",
+    "UPDATE packages SET discount_3m = 10, discount_6m = 20, discount_12m = 30 WHERE name = 'Premium' AND discount_3m = 0",
 ]
 
 
@@ -216,6 +221,9 @@ class Package(Base):
     chat_per_minute = Column(Integer, default=5, nullable=False)
     chat_per_day = Column(Integer, default=30, nullable=False)
     community_per_day = Column(Integer, default=3, nullable=False)
+    discount_3m = Column(Integer, default=0, nullable=False)
+    discount_6m = Column(Integer, default=0, nullable=False)
+    discount_12m = Column(Integer, default=0, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), nullable=False)
     users = relationship("User", back_populates="package")
@@ -347,6 +355,9 @@ class PackageResponse(BaseModel):
     chat_per_minute: int
     chat_per_day: int
     community_per_day: int
+    discount_3m: int = 0
+    discount_6m: int = 0
+    discount_12m: int = 0
     is_active: bool
     created_at: datetime
 
@@ -357,6 +368,9 @@ class PackageCreate(BaseModel):
     chat_per_minute: int = 5
     chat_per_day: int = 30
     community_per_day: int = 3
+    discount_3m: int = 0
+    discount_6m: int = 0
+    discount_12m: int = 0
     is_active: bool = True
 
 class PackageUpdate(BaseModel):
@@ -366,6 +380,9 @@ class PackageUpdate(BaseModel):
     chat_per_minute: Optional[int] = None
     chat_per_day: Optional[int] = None
     community_per_day: Optional[int] = None
+    discount_3m: Optional[int] = None
+    discount_6m: Optional[int] = None
+    discount_12m: Optional[int] = None
     is_active: Optional[bool] = None
 
 class UserPackageUpdate(BaseModel):
