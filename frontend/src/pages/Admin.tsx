@@ -97,6 +97,7 @@ export default function Admin() {
   const [showPackageForm, setShowPackageForm] = useState(false);
   const [editingPackageId, setEditingPackageId] = useState<number | null>(null);
   const [pkgForm, setPkgForm] = useState(emptyPackageForm);
+  const [selectedDurations, setSelectedDurations] = useState<number[]>([1]);
   const [toast, setToast] = useState<{ message: string; type: string } | null>(null);
 
   const showToast = (message: string, type: string) => {
@@ -261,6 +262,7 @@ export default function Admin() {
 
   const openPackageCreate = () => {
     setPkgForm(emptyPackageForm);
+    setSelectedDurations([1]);
     setEditingPackageId(null);
     setShowPackageForm(true);
   };
@@ -285,20 +287,55 @@ export default function Admin() {
 
   const handleSubmitPackage = async (e: React.FormEvent) => {
     e.preventDefault();
-    const url = editingPackageId ? `/api/packages/${editingPackageId}` : "/api/packages";
-    const method = editingPackageId ? "PUT" : "POST";
-    try {
-      const res = await apiFetchRaw(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pkgForm),
-      });
-      if (!res.ok) throw new Error("Failed");
-      showToast(editingPackageId ? "Cập nhật gói thành công" : "Thêm gói thành công", "success");
-      setShowPackageForm(false);
-      fetchPackages();
-    } catch {
-      showToast("Có lỗi xảy ra", "error");
+    if (editingPackageId) {
+      const url = `/api/packages/${editingPackageId}`;
+      try {
+        const res = await apiFetchRaw(url, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pkgForm),
+        });
+        if (!res.ok) throw new Error("Failed");
+        showToast("Cập nhật gói thành công", "success");
+        setShowPackageForm(false);
+        fetchPackages();
+      } catch {
+        showToast("Có lỗi xảy ra", "error");
+      }
+    } else {
+      if (selectedDurations.length === 0) {
+        showToast("Vui lòng chọn ít nhất một thời hạn", "error");
+        return;
+      }
+      try {
+        for (const dur of selectedDurations) {
+          let price = pkgForm.monthly_price;
+          if (dur === 3) price = Math.round(pkgForm.monthly_price * (1 - (pkgForm.discount_3m || 0) / 100));
+          else if (dur === 6) price = Math.round(pkgForm.monthly_price * (1 - (pkgForm.discount_6m || 0) / 100));
+          else if (dur === 12) price = Math.round(pkgForm.monthly_price * (1 - (pkgForm.discount_12m || 0) / 100));
+
+          const payload = {
+            ...pkgForm,
+            duration_months: dur,
+            monthly_price: price,
+          };
+
+          const res = await apiFetchRaw("/api/packages", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || "Failed");
+          }
+        }
+        showToast("Thêm gói thành công", "success");
+        setShowPackageForm(false);
+        fetchPackages();
+      } catch (err: any) {
+        showToast(err.message || "Có lỗi xảy ra", "error");
+      }
     }
   };
 
@@ -873,20 +910,52 @@ export default function Admin() {
                     style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
                   />
                 </div>
-                <div>
-                  <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Thời hạn sử dụng (Tháng) *</label>
-                  <select
-                    value={pkgForm.duration_months}
-                    onChange={(e) => setPkgForm({ ...pkgForm, duration_months: Number(e.target.value) })}
-                    className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
-                    style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14" }}
-                  >
-                    <option value={1}>1 Tháng (Mặc định)</option>
-                    <option value={3}>3 Tháng</option>
-                    <option value={6}>6 Tháng</option>
-                    <option value={12}>12 Tháng</option>
-                  </select>
-                </div>
+                {editingPackageId ? (
+                  <div>
+                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Thời hạn sử dụng (Tháng) *</label>
+                    <select
+                      value={pkgForm.duration_months}
+                      onChange={(e) => setPkgForm({ ...pkgForm, duration_months: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                      style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14" }}
+                    >
+                      <option value={1}>1 Tháng</option>
+                      <option value={3}>3 Tháng</option>
+                      <option value={6}>6 Tháng</option>
+                      <option value={12}>12 Tháng</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Chọn thời hạn muốn tạo *</label>
+                    <div className="flex flex-wrap gap-4 items-center p-3 rounded-xl bg-[#faf5f0] border border-[#e4ddd0]">
+                      {([1, 3, 6, 12] as number[]).map((dur) => (
+                        <label key={dur} className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-[#3d5c35]">
+                          <input
+                            type="checkbox"
+                            checked={selectedDurations.includes(dur)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedDurations([...selectedDurations, dur]);
+                              } else {
+                                setSelectedDurations(selectedDurations.filter((d) => d !== dur));
+                              }
+                            }}
+                            className="w-4 h-4 accent-[#2d5a27]"
+                          />
+                          {dur} Tháng
+                        </label>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDurations([1, 3, 6, 12])}
+                        className="ml-auto text-xs px-2.5 py-1.5 rounded-lg bg-[#2d5a27] text-white font-bold cursor-pointer hover:bg-[#1e3f1a] transition-all"
+                      >
+                        Chọn tất cả
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>Mô tả</label>
                   <textarea
