@@ -56,6 +56,7 @@ USER_MIGRATION_SQL = [
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()',
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'customer'",
     "UPDATE users SET role = 'administrator' WHERE is_admin = TRUE AND role = 'customer'",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT FALSE",
 ]
 
 PACKAGE_MIGRATION_SQL = [
@@ -193,6 +194,7 @@ def init_db():
                 print(f"LỖI TẠO BẢNG {table.name}: {ex}")
     migrate_db()
     ensure_default_packages()
+    ensure_default_settings()
 
 class Plant(Base):
     __tablename__ = "plants"
@@ -256,6 +258,7 @@ class User(Base):
     bio = Column(Text, nullable=True)
     is_admin = Column(Boolean, default=False)
     role = Column(String(50), default="customer", nullable=False)
+    is_primary = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     package_id = Column(Integer, ForeignKey("packages.id"), nullable=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
@@ -276,6 +279,117 @@ class CommunityMessage(Base):
     content = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), nullable=False, index=True)
     user = relationship("User", back_populates="messages")
+
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+    key = Column(String(100), primary_key=True)
+    value = Column(String(255), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)
+
+# Adjustable system settings (admin-editable at runtime)
+DEFAULT_SETTINGS = {
+    "guest_chat_per_day": 5,
+}
+
+def ensure_default_settings():
+    eng = get_engine()
+    if eng is None or SessionLocal is None:
+        return
+    db = SessionLocal()
+    try:
+        for key, value in DEFAULT_SETTINGS.items():
+            exists = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+            if not exists:
+                db.add(SystemSetting(key=key, value=str(value)))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Warning: Could not seed default settings: {e}")
+    finally:
+        db.close()
+
+def get_int_setting(db: Session, key: str, default: Optional[int] = None) -> int:
+    setting = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+    if not setting:
+        return int(DEFAULT_SETTINGS.get(key, default if default is not None else 0))
+    try:
+        return int(setting.value)
+    except (TypeError, ValueError):
+        return int(DEFAULT_SETTINGS.get(key, default if default is not None else 0))
+
+def set_int_setting(db: Session, key: str, value: int) -> None:
+    setting = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+    if setting:
+        setting.value = str(value)
+    else:
+        db.add(SystemSetting(key=key, value=str(value)))
+    db.commit()
+
+
+def ensure_primary_admin():
+    """Ensure exactly one primary admin account exists.
+
+    The primary admin cannot be deleted nor have its role changed (enforced in main.py).
+    Credentials come from ADMIN_USERNAME / ADMIN_PASSWORD / ADMIN_EMAIL env vars,
+    falling back to username "admin" with a default password for local development.
+    """
+    eng = get_engine()
+    if eng is None or SessionLocal is None:
+        return
+    db = SessionLocal()
+    try:
+        primary = db.query(User).filter(User.is_primary == True).first()
+        if primary:
+            changed = False
+            if not primary.is_admin:
+                primary.is_admin = True
+                changed = True
+            if primary.role != "administrator":
+                primary.role = "administrator"
+                changed = True
+            if changed:
+                db.commit()
+            return
+
+        from auth_utils import hash_password
+
+        username = (os.getenv("ADMIN_USERNAME") or "admin").strip() or "admin"
+        email = ((os.getenv("ADMIN_EMAIL") or "").strip() or f"{username}@localhost").lower()
+        password = os.getenv("ADMIN_PASSWORD") or ""
+
+        candidate = db.query(User).filter(User.username == username).first()
+        if candidate:
+            candidate.is_primary = True
+            candidate.is_admin = True
+            candidate.role = "administrator"
+            if password:
+                candidate.password_hash = hash_password(password)
+            db.commit()
+            print(f"Primary admin ensured on existing account: {username}")
+            return
+
+        generated = False
+        if not password:
+            password = "admin123"
+            generated = True
+        db.add(User(
+            username=username,
+            email=email,
+            password_hash=hash_password(password),
+            is_admin=True,
+            role="administrator",
+            is_primary=True,
+        ))
+        db.commit()
+        msg = f"Primary admin account created: {username}"
+        if generated:
+            msg += " (default password 'admin123' — change it via ADMIN_PASSWORD env)"
+        print(msg)
+    except Exception as e:
+        db.rollback()
+        print(f"Warning: Could not ensure primary admin: {e}")
+    finally:
+        db.close()
 
 if HAS_PGVECTOR:
     PlantDetail.vector_chunks = relationship("VectorChunk", back_populates="plant_detail")
@@ -357,6 +471,7 @@ class UserResponse(BaseModel):
     email: str
     is_admin: bool
     role: str = "customer"
+    is_primary: bool = False
     package_id: Optional[int] = None
     package_name: str = "Miễn phí"
     created_at: datetime

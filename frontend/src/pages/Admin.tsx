@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiFetchRaw } from "../api";
 import { useAuth } from "../useAuth";
-import { Plus, Pencil, Trash2, X, TreeDeciduous, RefreshCw, Leaf, Users, LogIn, Crown } from "lucide-react";
+import { Plus, Pencil, Trash2, X, TreeDeciduous, RefreshCw, Leaf, Users, LogIn, Crown, Settings } from "lucide-react";
 
 const FS = "'Playfair Display', Georgia, serif";
 
@@ -29,6 +29,7 @@ interface SiteUser {
   email: string;
   is_admin: boolean;
   role: string;
+  is_primary?: boolean;
   package_id?: number | null;
   package_name?: string;
   created_at: string;
@@ -101,6 +102,8 @@ export default function Admin() {
   const [pkgForm, setPkgForm] = useState(emptyPackageForm);
   const [selectedDurations, setSelectedDurations] = useState<number[]>([1]);
   const [toast, setToast] = useState<{ message: string; type: string } | null>(null);
+  const [guestChatLimit, setGuestChatLimit] = useState<number | null>(null);
+  const [savingGuestLimit, setSavingGuestLimit] = useState(false);
 
   const showToast = (message: string, type: string) => {
     setToast({ message, type });
@@ -217,6 +220,43 @@ export default function Admin() {
       cancelled = true;
     };
   }, [isFullAdmin]);
+
+  useEffect(() => {
+    if (!isFullAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetchRaw("/api/admin/settings");
+        if (cancelled) return;
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setGuestChatLimit(data.guest_chat_per_day);
+      } catch {
+        // settings card stays hidden on failure
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isFullAdmin]);
+
+  const saveGuestChatLimit = async () => {
+    if (guestChatLimit === null || guestChatLimit < 0) return;
+    setSavingGuestLimit(true);
+    try {
+      const res = await apiFetchRaw("/api/admin/settings/guest-chat-limit", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guest_chat_per_day: guestChatLimit }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      showToast("Đã cập nhật giới hạn chat cho khách", "success");
+    } catch {
+      showToast("Không thể cập nhật giới hạn chat cho khách", "error");
+    } finally {
+      setSavingGuestLimit(false);
+    }
+  };
 
   const handleDeleteUser = async (id: number) => {
     if (!confirm("Bạn có chắc chắn muốn xoá tài khoản này?")) return;
@@ -607,26 +647,40 @@ export default function Admin() {
                         <div className="flex items-center gap-3">
                           <div
                             className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
-                            style={{ background: "linear-gradient(135deg, #2d5a27 0%, #7ab648 100%)" }}
+                            style={{ background: u.is_primary ? "linear-gradient(135deg, #b8860b 0%, #f1c40f 100%)" : "linear-gradient(135deg, #2d5a27 0%, #7ab648 100%)" }}
                           >
                             {u.username.slice(0, 1).toUpperCase()}
                           </div>
-                          <span style={{ color: "#1c2e14", fontWeight: 700 }}>{u.username}</span>
+                          <div>
+                            <span style={{ color: "#1c2e14", fontWeight: 700 }}>{u.username}</span>
+                            {u.is_primary && (
+                              <span
+                                className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wide"
+                                style={{ background: "#fdf3d7", color: "#b8860b", fontWeight: 800 }}
+                              >
+                                <Crown className="w-3 h-3" /> Primary Admin
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-3.5" style={{ color: "#5a6e52" }}>{u.email}</td>
                       <td className="px-6 py-3.5">
-                        <select
-                          value={u.role ?? "customer"}
-                          disabled={u.id === user?.id}
-                          onChange={(e) => changeUserRole(u.id, e.target.value)}
-                          className="px-2.5 py-1.5 rounded-lg text-xs focus:outline-none"
-                          style={{ background: "#f5f0e8", border: "1.5px solid #e4ddd0", color: "#2d5a27", fontWeight: 600 }}
-                        >
-                          <option value="administrator">administrator</option>
-                          <option value="customer">customer</option>
-                          <option value="help">help</option>
-                        </select>
+                        {u.is_primary ? (
+                          <span className="text-xs" style={{ color: "#b8860b", fontWeight: 700 }}>Bảo vệ (Primary)</span>
+                        ) : (
+                          <select
+                            value={u.role ?? "customer"}
+                            disabled={u.id === user?.id}
+                            onChange={(e) => changeUserRole(u.id, e.target.value)}
+                            className="px-2.5 py-1.5 rounded-lg text-xs focus:outline-none"
+                            style={{ background: "#f5f0e8", border: "1.5px solid #e4ddd0", color: "#2d5a27", fontWeight: 600 }}
+                          >
+                            <option value="administrator">administrator</option>
+                            <option value="customer">customer</option>
+                            <option value="help">help</option>
+                          </select>
+                        )}
                       </td>
                       <td className="px-6 py-3.5">
                         <select
@@ -648,7 +702,7 @@ export default function Admin() {
                         {new Date(u.created_at).toLocaleDateString("vi-VN")}
                       </td>
                       <td className="px-6 py-3.5">
-                        {u.role !== "administrator" && (
+                        {!u.is_primary && u.role !== "administrator" && (
                           <button
                             onClick={() => handleDeleteUser(u.id)}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
@@ -666,6 +720,49 @@ export default function Admin() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* System settings */}
+      {isFullAdmin && (
+        <div className="rounded-3xl overflow-hidden mt-8" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #eaf0e4" }}>
+            <div className="flex items-center gap-2">
+              <Settings className="w-4 h-4" style={{ color: "#7ab648" }} />
+              <span style={{ color: "#1c2e14", fontWeight: 700, fontSize: 15 }}>Cài đặt hệ thống</span>
+            </div>
+          </div>
+          <div className="px-6 py-5">
+            <p className="text-sm mb-4" style={{ color: "#6b7c5e" }}>
+              Giới hạn số tin nhắn chat mỗi ngày dành cho khách chưa đăng nhập. Đặt 0 để không giới hạn.
+            </p>
+            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+              <div className="w-full sm:w-64">
+                <label className="block text-sm mb-1.5" style={{ color: "#3d5c35", fontWeight: 600 }}>
+                  Tin nhắn / ngày (khách) — 0 = ∞
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={guestChatLimit ?? ""}
+                  disabled={guestChatLimit === null || savingGuestLimit}
+                  onChange={(e) => setGuestChatLimit(Number(e.target.value))}
+                  className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                  style={{ background: "#fff", border: "1.5px solid #e4ddd0", color: "#1c2e14", caretColor: "#2d5a27" }}
+                />
+              </div>
+              <button
+                onClick={saveGuestChatLimit}
+                disabled={guestChatLimit === null || savingGuestLimit}
+                className="px-5 py-2.5 rounded-xl text-sm transition-all"
+                style={{ background: guestChatLimit === null ? "#e8e2da" : "#2d5a27", color: "#fff", fontWeight: 700 }}
+                onMouseEnter={(e) => { if (guestChatLimit !== null) e.currentTarget.style.background = "#1e3f1a"; }}
+                onMouseLeave={(e) => { if (guestChatLimit !== null) e.currentTarget.style.background = "#2d5a27"; }}
+              >
+                {savingGuestLimit ? "Đang lưu..." : "Lưu giới hạn"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

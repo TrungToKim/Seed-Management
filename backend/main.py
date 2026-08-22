@@ -8,22 +8,27 @@ from contextlib import asynccontextmanager
 from pydantic import BaseModel
 
 from database import (
-    get_db, Plant, Tag, User, CommunityMessage, Package,
+    get_db, get_engine, init_db, Plant, Tag, User, CommunityMessage, Package,
     PlantResponse, PlantListResponse, PlantCreate,
     TagResponse, ChatRequest, ChatResponse,
     UserCreate, UserLogin, UserResponse, AuthResponse,
     PackageResponse, PackageCreate, PackageUpdate, UserPackageUpdate, SubscribeRequest,
     CommunityMessageCreate, CommunityMessageResponse, CommunityMessageListResponse,
     get_free_package,
+    SystemSetting, get_int_setting, set_int_setting, DEFAULT_SETTINGS,
+    ensure_primary_admin,
 )
 from auth_utils import hash_password, verify_password, create_token, get_current_user
 from chat_service import get_qa_chain
-from rate_limit import check_rate_limit, check_daily_limit
+from rate_limit import check_rate_limit, check_daily_limit, get_daily_count
 
 qa_chain = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Apply migrations/settings and guarantee the protected primary admin exists.
+    init_db()
+    ensure_primary_admin()
     yield
 
 app = FastAPI(
@@ -49,6 +54,40 @@ app.add_middleware(
 def root():
     return {"message": "Quan ly cay thuoc API", "docs": "/docs"}
 
+def get_chat_quota(user: Optional[User], db: Session, client_ip: Optional[str] = None) -> dict:
+    """Return daily chat quota info for a (possibly anonymous) visitor."""
+    if user:
+        package = user.package if user and user.package else get_free_package(db)
+        limit = package.chat_per_day
+        used = get_daily_count(f"chat_day:user:{user.id}")
+        return {
+            "authenticated": True,
+            "limit": limit,
+            "used": used,
+            "remaining": None if limit <= 0 else max(0, limit - used),
+        }
+    # Guests (not logged in) get an admin-adjustable daily limit, tracked per-IP.
+    limit = get_int_setting(db, "guest_chat_per_day")
+    used = get_daily_count(f"chat_day:ip:{client_ip or 'unknown'}")
+    return {
+        "authenticated": False,
+        "limit": limit,
+        "used": used,
+        "remaining": None if limit <= 0 else max(0, limit - used),
+    }
+
+
+@app.get("/api/chat/quota")
+def chat_quota(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+):
+    user = get_current_user(authorization, db)
+    ip = request.client.host if request.client else "unknown"
+    return get_chat_quota(user, db, ip)
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 def post_chat(
     req: ChatRequest,
@@ -63,22 +102,30 @@ def post_chat(
         raise HTTPException(status_code=503, detail="Chat service is not available (vector DB not initialized)")
 
     user = get_current_user(authorization, db)
-    package = user.package if user and user.package else get_free_package(db)
     if user:
         rate_key = f"user:{user.id}"
     else:
         ip = request.client.host if request.client else "unknown"
         rate_key = f"ip:{ip}"
 
-    if not check_daily_limit(f"chat_day:{rate_key}", package.chat_per_day):
+    if user:
+        package = user.package if user.package else get_free_package(db)
+        day_limit = package.chat_per_day
+        minute_limit = package.chat_per_minute
+        day_detail = f"Bạn đã đạt giới hạn {package.chat_per_day} lượt chat hôm nay. Hãy nâng cấp gói để tăng giới hạn."
+    else:
+        # Guests (not logged in) get an admin-adjustable daily message limit.
+        day_limit = get_int_setting(db, "guest_chat_per_day")
+        free_pkg = get_free_package(db)
+        minute_limit = free_pkg.chat_per_minute
+        day_detail = f"Khách chưa đăng nhập chỉ được dùng tối đa {day_limit} tin nhắn mỗi ngày. Đăng nhập để nhận giới hạn cao hơn."
+
+    if not check_daily_limit(f"chat_day:{rate_key}", day_limit):
+        raise HTTPException(status_code=429, detail=day_detail)
+    if not check_rate_limit(f"chat_min:{rate_key}", minute_limit, 60):
         raise HTTPException(
             status_code=429,
-            detail=f"Bạn đã đạt giới hạn {package.chat_per_day} lượt chat hôm nay. Hãy nâng cấp gói để tăng giới hạn.",
-        )
-    if not check_rate_limit(f"chat_min:{rate_key}", package.chat_per_minute, 60):
-        raise HTTPException(
-            status_code=429,
-            detail=f"Bạn đang hỏi quá nhanh (tối đa {package.chat_per_minute} lượt/phút). Vui lòng chờ một lát.",
+            detail=f"Bạn đang hỏi quá nhanh (tối đa {minute_limit} lượt/phút). Vui lòng chờ một lát.",
         )
 
     try:
@@ -122,9 +169,13 @@ def register(data: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/api/auth/login", response_model=AuthResponse)
 def login(data: UserLogin, db: Session = Depends(get_db)):
+    from datetime import datetime, timezone
     user = db.query(User).filter(User.username == data.username.strip()).first()
     if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
     return AuthResponse(token=create_token(user.id), user=user)
 
 @app.get("/api/auth/me", response_model=UserResponse)
@@ -252,6 +303,14 @@ def create_community_message(
     db.refresh(message)
     return message
 
+
+@app.get("/api/community/stats")
+def community_stats(db: Session = Depends(get_db)):
+    """Public stats: participant count reflects the number of registered (loggable) accounts."""
+    members = db.query(User).filter(User.is_active == True).count()
+    total_messages = db.query(CommunityMessage).count()
+    return {"members": members, "total_messages": total_messages}
+
 # ── User management (admin) ─────────────────────────────────────────
 
 @app.get("/api/users", response_model=List[UserResponse])
@@ -269,6 +328,8 @@ def delete_user(user_id: int, authorization: Optional[str] = Header(None), db: S
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.is_primary:
+        raise HTTPException(status_code=403, detail="Không thể xoá tài khoản quản trị viên chính (primary admin)")
     if user.role == "administrator":
         raise HTTPException(status_code=400, detail="Cannot delete an administrator account")
     db.delete(user)
@@ -449,6 +510,8 @@ def set_user_role(user_id: int, data: UserRoleUpdate, authorization: Optional[st
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.is_primary:
+        raise HTTPException(status_code=403, detail="Không thể thay đổi vai trò của tài khoản quản trị viên chính (primary admin)")
     if user.id == admin.id and data.role != "administrator":
         raise HTTPException(status_code=400, detail="Cannot demote yourself from administrator")
     user.role = data.role
@@ -456,3 +519,33 @@ def set_user_role(user_id: int, data: UserRoleUpdate, authorization: Optional[st
     db.commit()
     db.refresh(user)
     return user
+
+# ── System settings (admin) ──────────────────────────────────────────
+
+@app.get("/api/admin/settings")
+def get_admin_settings(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    admin = get_current_user(authorization, db)
+    if not admin or admin.role != "administrator":
+        raise HTTPException(status_code=403, detail="Administrator access required")
+    return {
+        key: get_int_setting(db, key)
+        for key in DEFAULT_SETTINGS
+    }
+
+class GuestChatLimitUpdate(BaseModel):
+    guest_chat_per_day: int
+
+@app.put("/api/admin/settings/guest-chat-limit", response_model=dict)
+def update_guest_chat_limit(
+    data: GuestChatLimitUpdate,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+):
+    """Adjust the daily chat message limit applied to users who are not logged in."""
+    admin = get_current_user(authorization, db)
+    if not admin or admin.role != "administrator":
+        raise HTTPException(status_code=403, detail="Administrator access required")
+    if data.guest_chat_per_day < 0:
+        raise HTTPException(status_code=400, detail="Giới hạn phải là số không âm (0 = không giới hạn)")
+    set_int_setting(db, "guest_chat_per_day", data.guest_chat_per_day)
+    return {"guest_chat_per_day": data.guest_chat_per_day}

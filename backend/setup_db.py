@@ -76,17 +76,21 @@ def bootstrap_admin():
             user.email = email or user.email
             user.password_hash = hash_password(password)
             user.is_admin = True
+            user.role = "administrator"
+            user.is_primary = True
             db.commit()
-            print(f"Admin account updated: {username}")
+            print(f"Primary admin account updated: {username}")
         else:
             db.add(User(
                 username=username,
                 email=email or f"{username}@localhost",
                 password_hash=hash_password(password),
                 is_admin=True,
+                role="administrator",
+                is_primary=True,
             ))
             db.commit()
-            print(f"Admin account created: {username}")
+            print(f"Primary admin account created: {username}")
     finally:
         db.close()
 

@@ -9,10 +9,18 @@ export interface AuthUser {
   email: string;
   is_admin: boolean;
   role: string;
+  is_primary?: boolean;
   package_id?: number | null;
   package_name?: string;
   full_name?: string | null;
   avatar_url?: string | null;
+}
+
+export interface ChatQuota {
+  authenticated: boolean;
+  limit: number;
+  used: number;
+  remaining: number | null;
 }
 
 export function getAvatarUrl(url: string | null | undefined): string {

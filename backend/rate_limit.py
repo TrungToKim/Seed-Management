@@ -44,3 +44,13 @@ def check_daily_limit(key: str, limit: int) -> bool:
             return False
         entry["count"] += 1
         return True
+
+
+def get_daily_count(key: str) -> int:
+    """Read-only count of usages recorded today for the given key."""
+    day = time.strftime("%Y-%m-%d")
+    with _lock:
+        entry = _daily.get(key)
+        if not entry or entry["date"] != day:
+            return 0
+        return entry["count"]

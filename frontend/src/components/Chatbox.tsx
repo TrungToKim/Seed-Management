@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import {
-  Send, Bot, User, RefreshCw, Copy, ThumbsUp, ThumbsDown, Plus, Leaf, BookOpen, Search, Droplets,
+  Send, Bot, User, RefreshCw, Copy, ThumbsUp, ThumbsDown, Plus, Leaf, BookOpen, Search, Droplets, LogIn, UserPlus, Info,
 } from "lucide-react";
-import { apiFetch } from "../api";
+import { apiFetch, apiFetchRaw, type ChatQuota } from "../api";
 import { useAuth } from "../useAuth";
 
 interface Message {
@@ -36,8 +37,32 @@ export default function ChatBot() {
   const [loading, setLoading] = useState(false);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
+  const [quota, setQuota] = useState<ChatQuota | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const idCounter = useRef(0);
+
+  const refreshQuota = useCallback(async () => {
+    try {
+      setQuota(await apiFetch<ChatQuota>("/api/chat/quota"));
+    } catch {
+      // quota display is informational only
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const q = await apiFetch<ChatQuota>("/api/chat/quota");
+        if (!cancelled) setQuota(q);
+      } catch {
+        // quota display is informational only
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     const stored = localStorage.getItem("tv_chat_search_history");
@@ -88,10 +113,22 @@ export default function ChatBot() {
         .filter((m) => m.role !== "assistant" || m.sources.length > 0 || m.id !== "init")
         .slice(-8)
         .map((m) => ({ role: m.role, content: m.content }));
-      const data = await apiFetch<{ status: string; answer: string; sources: string[] }>("/api/chat", {
+      const res = await apiFetchRaw("/api/chat", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: value, history }),
       });
+      if (!res.ok) {
+        let detail = "";
+        try {
+          const err = await res.json();
+          detail = typeof err.detail === "string" ? err.detail : "";
+        } catch {
+          // ignore malformed error bodies
+        }
+        throw new Error(detail || (res.status === 429 ? "Bạn đã đạt giới hạn tin nhắn." : `HTTP ${res.status}`));
+      }
+      const data = await res.json();
       const botMsg: Message = {
         id: `m${++idCounter.current}`,
         role: "assistant",
@@ -102,16 +139,23 @@ export default function ChatBot() {
       setMessages((prev) => [...prev, botMsg]);
     } catch (error) {
       console.error("Lỗi gọi API:", error);
+      const fallback =
+        error instanceof Error && error.message.startsWith("HTTP")
+          ? "Không thể kết nối đến Backend. Hãy kiểm tra lại server FastAPI."
+          : error instanceof Error
+            ? error.message
+            : "Không thể kết nối đến Backend. Hãy kiểm tra lại server FastAPI.";
       const botMsg: Message = {
         id: `m${++idCounter.current}`,
         role: "assistant",
-        content: "Không thể kết nối đến Backend. Hãy kiểm tra lại server FastAPI.",
+        content: fallback,
         sources: [],
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, botMsg]);
     } finally {
       setLoading(false);
+      refreshQuota();
     }
   }
 
@@ -161,6 +205,8 @@ export default function ChatBot() {
     });
   }
 
+  const guestExhausted = !user && !!quota && quota.limit > 0 && (quota.remaining ?? 0) <= 0;
+
   return (
     <div className="flex min-h-[calc(100vh-73px)] overflow-hidden" style={{ background: "#faf5f0" }}>
       {/* Sidebar */}
@@ -208,7 +254,11 @@ export default function ChatBot() {
             </div>
             <div className="min-w-0">
               <p className="text-sm truncate" style={{ color: "#e6f2dd", fontWeight: 600 }}>{user?.username || "Khách"}</p>
-              <p className="text-xs" style={{ color: "#8fae83" }}>{user?.package_name || "Gói miễn phí"}</p>
+              <p className="text-xs truncate" style={{ color: "#8fae83" }}>
+                {user
+                  ? user.package_name || "Gói miễn phí"
+                  : `Khách · còn ${quota ? (quota.limit <= 0 ? "∞" : quota.remaining) : "…"} tin nhắn hôm nay`}
+              </p>
             </div>
           </div>
         </div>
@@ -399,6 +449,43 @@ export default function ChatBot() {
 
         {/* Input area */}
         <div className="flex-shrink-0 px-6 py-4" style={{ background: "#fff", borderTop: "1px solid #e8e2da" }}>
+          {!user && (
+            <div
+              className="flex flex-col sm:flex-row items-center justify-between gap-2 mb-3 px-4 py-2.5 rounded-xl"
+              style={{ background: "#eaf0e4", border: "1.5px dashed #a8c896" }}
+            >
+              <div className="flex items-center gap-2">
+                <Info className="w-4 h-4 flex-shrink-0" style={{ color: "#7ab648" }} />
+                <p className="text-xs sm:text-sm" style={{ color: "#2d5a27", fontWeight: 600 }}>
+                  Bạn chưa đăng nhập — còn{" "}
+                  <span style={{ fontWeight: 800 }}>
+                    {quota ? (quota.limit <= 0 ? "∞" : quota.remaining) : "…"}
+                  </span>{" "}
+                  tin nhắn hôm nay. Đăng nhập để mở khoá giới hạn cao hơn theo gói.
+                </p>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <Link
+                  to="/login"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs no-underline transition-all"
+                  style={{ background: "#2d5a27", color: "#fff", fontWeight: 700 }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#1e3f1a")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#2d5a27")}
+                >
+                  <LogIn className="w-3.5 h-3.5" /> Đăng nhập
+                </Link>
+                <Link
+                  to="/register"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs no-underline transition-all"
+                  style={{ background: "#fff", color: "#2d5a27", fontWeight: 700, border: "1px solid #a8c896" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#d7e8cd")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+                >
+                  <UserPlus className="w-3.5 h-3.5" /> Tạo tài khoản
+                </Link>
+              </div>
+            </div>
+          )}
           <div
             className="flex items-end gap-3 rounded-xl px-4 py-3"
             style={{ background: "#faf5f0", border: "1.5px solid #e8e2da", transition: "border-color 0.15s" }}
@@ -410,7 +497,12 @@ export default function ChatBot() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Hỏi Thực Vật Bot về cây thuốc, bài thuốc, cách sử dụng..."
+              disabled={guestExhausted}
+              placeholder={
+                guestExhausted
+                  ? "Bạn đã hết lượt chat hôm nay. Đăng nhập để tiếp tục trò chuyện."
+                  : "Hỏi Thực Vật Bot về cây thuốc, bài thuốc, cách sử dụng..."
+              }
               className="flex-1 resize-none bg-transparent text-sm focus:outline-none"
               style={{ color: "#1c2e14", maxHeight: 140, lineHeight: 1.6, fontFamily: "'Nunito', system-ui, sans-serif" }}
               onInput={(e) => {
@@ -421,16 +513,21 @@ export default function ChatBot() {
             />
             <button
               onClick={() => send()}
-              disabled={!input.trim() || loading}
+              disabled={!input.trim() || loading || guestExhausted}
               className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-all"
               style={{
-                background: input.trim() && !loading ? "#2d5a27" : "#e8e2da",
-                color: input.trim() && !loading ? "#fff" : "#bbb",
+                background: input.trim() && !loading && !guestExhausted ? "#2d5a27" : "#e8e2da",
+                color: input.trim() && !loading && !guestExhausted ? "#fff" : "#bbb",
               }}
             >
               <Send className="w-4 h-4" />
             </button>
           </div>
+          {guestExhausted && (
+            <p className="text-center text-xs mt-2" style={{ color: "#c0392b", fontWeight: 700 }}>
+              Khách đã dùng hết lượt chat trong hôm nay — hãy đăng nhập để tiếp tục.
+            </p>
+          )}
           <p className="text-center text-xs mt-2" style={{ color: "#bbb" }}>
             Thực Vật Bot có thể mắc lỗi. Hãy kiểm chứng thông tin quan trọng với chuyên gia.
           </p>

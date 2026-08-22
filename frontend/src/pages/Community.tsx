@@ -16,6 +16,11 @@ interface CommunityMessage {
   created_at: string;
 }
 
+interface CommunityStats {
+  members: number;
+  total_messages: number;
+}
+
 const AVATAR_COLORS = ["#2d5a27", "#7ab648", "#2980b9", "#c0392b", "#8e44ad", "#e67e22", "#16a085", "#8b6914"];
 
 function colorFor(name: string): string {
@@ -37,12 +42,21 @@ function formatTime(iso: string): string {
 export default function Community() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<CommunityMessage[]>([]);
+  const [stats, setStats] = useState<CommunityStats | null>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastIdRef = useRef(0);
+
+  const fetchStats = async () => {
+    try {
+      setStats(await apiFetch<CommunityStats>("/api/community/stats"));
+    } catch {
+      // stats badge is informational only
+    }
+  };
 
   const fetchMessages = async () => {
     try {
@@ -60,6 +74,14 @@ export default function Community() {
 
   useEffect(() => {
     let cancelled = false;
+    (async () => {
+      try {
+        const s = await apiFetch<CommunityStats>("/api/community/stats");
+        if (!cancelled) setStats(s);
+      } catch {
+        // stats badge is informational only
+      }
+    })();
     (async () => {
       try {
         const res = await apiFetchRaw("/api/community/messages?page_size=200");
@@ -127,6 +149,7 @@ export default function Community() {
       });
       setMessages((prev) => [...prev, msg]);
       setInput("");
+      fetchStats();
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
       setError(
@@ -139,7 +162,9 @@ export default function Community() {
     }
   };
 
-  const members = new Set(messages.map((m) => m.username)).size;
+  // Participant count reflects the number of registered (loggable) accounts,
+  // provided by the backend instead of being derived from fetched messages.
+  const members = stats ? stats.members : null;
 
   return (
     <div className="px-6 py-10 max-w-[1280px] mx-auto">
@@ -161,7 +186,7 @@ export default function Community() {
             <MessagesSquare className="w-4 h-4" /> {messages.length} tin nhắn
           </div>
           <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{ background: "#eaf0e4", color: "#2d5a27", fontWeight: 700, fontSize: 13 }}>
-            <Users className="w-4 h-4" /> {members} người
+            <Users className="w-4 h-4" /> {members ?? "…"} người tham gia
           </div>
         </div>
       </div>
