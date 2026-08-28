@@ -2,6 +2,7 @@
 """Sync tags + image_url tu DB local (.env) sang DB production (Render)."""
 import os
 import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 

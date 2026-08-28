@@ -1,4 +1,6 @@
 import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -8,7 +10,7 @@ def ensure_database():
     """Create the database (if it doesn't exist) and ensure all tables exist."""
     from urllib.parse import urlparse
     import psycopg2
-    from database import init_db
+    from app.database import init_db
 
     probe = None
     for key in ("DB_URL", "DATABASE_URL"):
@@ -53,8 +55,8 @@ def ensure_database():
 
 def bootstrap_admin():
     """Create or update an admin account from ADMIN_USERNAME / ADMIN_PASSWORD / ADMIN_EMAIL."""
-    from database import SessionLocal, User
-    from auth_utils import hash_password
+    from app.database import SessionLocal, User
+    from app.auth_utils import hash_password
 
     username = (os.getenv("ADMIN_USERNAME") or "").strip()
     password = os.getenv("ADMIN_PASSWORD") or ""

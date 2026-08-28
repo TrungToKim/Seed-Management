@@ -6,7 +6,7 @@ import secrets
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from database import User
+from app.database import User
 
 AUTH_SECRET = os.getenv("AUTH_SECRET", "dev-secret-change-me-in-production")
 PASSWORD_ITERATIONS = 200_000

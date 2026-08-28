@@ -1,8 +1,10 @@
-import re, os
-from langchain_community.document_loaders import PyPDFLoader
-from database import get_db, init_db, Plant, PlantDetail
+import re, os, sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-PDF_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'pdf', 'Thong_tin_duoc_lieu.pdf')
+from langchain_community.document_loaders import PyPDFLoader
+from app.database import get_db, init_db, Plant, PlantDetail
+
+PDF_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'pdf', 'Thong_tin_duoc_lieu.pdf')
 
 def parse_pdf():
     loader = PyPDFLoader(PDF_PATH)

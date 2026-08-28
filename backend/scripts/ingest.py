@@ -1,11 +1,13 @@
 import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import tiktoken
 from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_postgres import PGVector
 from langchain_core.documents import Document
-from database import SQLALCHEMY_URL, get_db, init_db, Plant, PlantDetail
-from chat_service import get_embeddings, COLLECTION_NAME
+from app.database import SQLALCHEMY_URL, get_db, init_db, Plant, PlantDetail
+from app.chat_service import get_embeddings, COLLECTION_NAME
 
 CHUNK_SIZE = 500      # 250 ~ 500 token
 CHUNK_OVERLAP = 50    # 30 ~ 50 token
@@ -20,7 +22,7 @@ def _token_len(text: str) -> int:
 
 def ingest():
     print("1. Dang tai tai lieu PDF...")
-    pdf_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'pdf'))
+    pdf_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'pdf'))
     print(f"   PDF path: {pdf_path}")
     loader = PyPDFDirectoryLoader(pdf_path)
     docs = loader.load()

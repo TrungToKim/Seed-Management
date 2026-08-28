@@ -351,7 +351,7 @@ def ensure_primary_admin():
                 db.commit()
             return
 
-        from auth_utils import hash_password
+        from app.auth_utils import hash_password
 
         username = (os.getenv("ADMIN_USERNAME") or "admin").strip() or "admin"
         email = ((os.getenv("ADMIN_EMAIL") or "").strip() or f"{username}@localhost").lower()

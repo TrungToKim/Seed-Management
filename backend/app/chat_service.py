@@ -3,7 +3,7 @@ import re
 from dotenv import load_dotenv
 from sqlalchemy import or_
 
-from database import SQLALCHEMY_URL, get_db, Plant, Tag
+from app.database import SQLALCHEMY_URL, get_db, Plant, Tag
 
 load_dotenv()
 
@@ -151,56 +151,26 @@ def _strip_diacritics(text: str) -> str:
 
 
 def _keyword_search(query: str, db, top: int = 6):
-    """Find plants whose name/description/tags match query tokens directly in SQL.
+    """Find plants whose name/description/tags match query tokens.
 
     This guarantees that if the plant data exists in the database, its content is
     included in the LLM context even when vector similarity fails to surface it.
     """
     from langchain_core.documents import Document
+    from app.search_utils import score_plant
 
-    tokens = _tokenize(query)
-    if not tokens:
-        return []
-    matched = []
-    seen_ids = set()
+    all_plants = db.query(Plant).all()
+    scored_plants = []
+    for p in all_plants:
+        score = score_plant(p, query)
+        if score > 0:
+            scored_plants.append((p, score))
 
-    for token in tokens:
-        rows = (
-            db.query(Plant)
-            .filter(
-                or_(
-                    Plant.common_name.ilike(f"%{token}%"),
-                    Plant.scientific_name.ilike(f"%{token}%"),
-                    Plant.description.ilike(f"%{token}%"),
-                    Plant.tags.any(Tag.tag_name.ilike(f"%{token}%")),
-                )
-            )
-            .limit(top)
-            .all()
-        )
-        for plant in rows:
-            if plant.id not in seen_ids:
-                seen_ids.add(plant.id)
-                matched.append(plant)
-        if len(matched) >= top:
-            break
-
-    if len(matched) < top:
-        stripped = {_strip_diacritics(t) for t in tokens}
-        name_query = db.query(Plant).limit(800).all()
-        for plant in name_query:
-            if len(matched) >= top:
-                break
-            if plant.id in seen_ids:
-                continue
-            name = _strip_diacritics(plant.common_name or "")
-            sci = _strip_diacritics(plant.scientific_name or "")
-            if any(t in name or (sci and t in sci) for t in stripped):
-                seen_ids.add(plant.id)
-                matched.append(plant)
+    # Sort by match score descending
+    scored_plants.sort(key=lambda x: x[1], reverse=True)
 
     docs = []
-    for plant in matched:
+    for plant, score in scored_plants[:top]:
         docs.append(Document(
             page_content=_plant_to_text(plant),
             metadata={"source": f"DB: {plant.common_name}", "plant_id": plant.id},

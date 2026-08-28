@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 """Seed tags (Cong dung) va image_url cho cac cay thuoc trong database."""
 import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json
 import time
 import urllib.parse
 import urllib.request
 
-import database
+from app import database
 
 TAG_CATEGORY = "Công dụng"
 TAGS = [
