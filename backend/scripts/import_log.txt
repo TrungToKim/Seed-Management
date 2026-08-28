@@ -1,0 +1,36 @@
+1. Reading PDF...
+2. Parsing data...
+   Found 30 plants
+    1. [Actiso] | [Cynara scolymus] | [Asteraceae] | [Thanh nhiệt, giải độc gan, lợi mật, hạ cholesterol máu, tiêu hóa kém. 10-20g (kh]
+    2. [] | [Ba k] | [Rubiaceae] | [Bổ thận dương, mạnh gân cốt, trị liệt dương, di tinh, đau mỏi lưng gối. 8-16g/ng]
+    3. [Bạc hà] | [Mentha arvensis] | [Lamiaceae] | [Phát tán phong nhiệt, chữa cảm mạo, ngạt mũi, nhức đầu, viêm họng. 4-8g/ngày. Ch]
+    4. [Bách bệnh] | [Eurycoma longifolia] | [Simaroubaceae] | [Chữa sốt, tiêu hóa kém, đau lưng mỏi gối, cải thiện sinh lý nam giới. 4-12g/ngày]
+    5. [Bách bộ] | [Stemona tuberosa Lour.] | [Stemonaceae] | [Nhuận phế chỉ khái (trị ho, đặc biệt ho gà, ho lâu ngày), tẩy giun, diệt chấy rậ]
+    6. [Bạch cập] | [Bletilla striata (Thunb.) Reichb.] | [Orchidaceae] | [-12g/ngày. Kỵ Ô đầu, không được dùng chung. Thu liễm, cầm máu (chữa ho ra máu, c]
+    7. [Bạch chỉ] | [Angelica dahurica (Fisch. ex Hoffm.) Benth.] | [Apiaceae] | [Tán phong trừ thấp, thông khiếu, giảm đau đầu, chữa viêm xoang, trị mủ. 4-12g/ng]
+    8. [Bạch giới tử] | [Sinapis alba] | [Brassicaceae] | [Ôn phế khoát đàm, chỉ khái (trị ho nhiều đờm lạnh), tiêu thũng, giảm đau. 3-9g/n]
+    9. [Bạch hoa xà thiệt thảo] | [Hedyotis diffusa Willd.] | [Rubiaceae] | [Thanh nhiệt giải độc, lợi niệu, tiêu ung thũng (hỗ trợ điều trị u bướu). 15-60g/]
+   10. [Bách hợp] | [Lilium spp] | [Liliaceae] | [Nhuận phế chỉ khái, thanh tâm an thần (trị ho khan, suy nhược thần kinh, mất ngủ]
+   11. [Bạch truật] | [Atractylodes macrocephala Koidz.] | [Asteraceae] | [Kiện tỳ ích khí, táo thấp lợi thủy, cầm mồ hôi, an thai. 6-12g/ngày. Người có tr]
+   12. [Bán chi liên] | [Scutellaria barbata D. Don.] | [Lamiaceae] | [Thanh nhiệt giải độc, tiêu sưng giảm đau, hỗ trợ điều trị ung bướu. 15-30g/ngày.]
+   13. [Bảy lá một hoa] | [Paris spp] | [] | [.- Trilliaceae Thanh nhiệt giải độc, tiêu thũng, chỉ thống, chữa rắn cắn, mụn nh]
+   14. [Bồ bồ] | [Adenosma indianum (Lour.) Merr.] | [Scrophulariaceae] | [Giải cảm, thanh nhiệt, hóa thấp, chữa chứng sốt do thời tiết, viêm gan vàng da. ]
+   15. [Bồ công anh] | [Lactuca indica] | [Asteraceae] | [Thanh nhiệt giải độc, tiêu viêm, tán kết, lợi sữa, trị tắc tia sữa, mụn nhọt. 20]
+   16. [Bồ kết] | [Gleditsia australis] | [Fabaceae] | [Thông khiếu, tiêu đờm, sát trùng, trị ho, ngạt mũi, trúng phong (đột quỵ nhẹ). 3]
+   17. [] | [Cam th] | [Fabaceae] | [Bổ tỳ vị, nhuận phế, giải độc, điều hòa các vị thuốc khác, giảm ho. 2-12g/ngày. ]
+   18. [Cát cánh] | [Platycodon grandiflorum (Jacq.) A.DC.] | [Campanulaceae] | [Tuyên phế, khử đàm, lợi yết, bài nùng (chữa ho có đờm, viêm họng, viêm amidan). ]
+   19. [Cát sâm] | [Callerya speciosa (Champ.)] | [Fabaceae] | [Bổ khí, sinh tân, nhuận phế, chỉ khái, trị cơ thể suy nhược, ho khan. 12-20g/ngà]
+   20. [Câu đằng] | [Uncaria spp] | [Rubiaceae] | [Bình can tức phong, thanh nhiệt, chữa cao huyết áp, chóng mặt, trẻ em co giật. 1]
+   21. [Cẩu tích] | [Cibotium barometz (L.) J. Sm.] | [Dicksoniaceae] | [Bổ can thận, mạnh gân xương, trừ phong thấp, chữa đau lưng mỏi gối, phong hàn. 1]
+   22. [Cốt khí củ] | [Reynoutria japonica Houtt.] | [Polygonaceae] | [Hoạt huyết, thông kinh, chỉ thống (giảm đau), trị phong tê thấp, chấn thương tụ ]
+   23. [Cốt toái bổ] | [Drynaria fortunei (Kuntze ex Mett.) J. Sm.] | [Polypodiaceae] | [Bổ thận, làm liền xương cốt, trị đau lưng mỏi gối, ù tai, răng long, chấn thương]
+   24. [Củ mài (Hoài sơn)] | [Dioscorea persimilis] | [Dioscoreaceae] | [Bổ tỳ vị, ích phế thận, trị tiêu chảy lâu ngày, đái tháo đường, suy nhược. 10-30]
+   25. [Cúc hoa vàng] | [Chrysanthemum indicum] | [Asteraceae] | [Thanh nhiệt, giải độc, sáng mắt, tán phong dương, chữa đau đầu, tăng huyết áp. 6]
+   26. [Đảng sâm] | [Codonopsis javanica (Blume.) Hook.] | [Campanulaceae] | [Bổ trung ích khí, sinh tân, chữa suy nhược, mệt mỏi, tỳ vị hư yếu, ăn kém. 10-30]
+   27. [Dành dành] | [Gardenia jasminoides J. Ellis.] | [Rubiaceae] | [Thanh nhiệt, tả hỏa, lợi thấp, lương huyết, trị sốt, viêm gan vàng da, chảy máu.]
+   28. [Dâu tằm] | [Morus alba] | [Moraceae] | [Quả (tang thầm) bổ máu, sáng mắt; Lá (tang diệp) tán phong nhiệt, trị cảm, ho. 1]
+   29. [Đậu ván trắng] | [Lablab purpureus (L.)] | [Fabaceae] | [Kiện tỳ, hóa thấp, chữa tiêu chảy, nôn mửa do mùa hè nóng ẩm, ngộ độc thức ăn. 1]
+   30. [Dây đau xương] | [Tinospora sinensis (Lour.) Merr.] | [Menispermaceae] | [Khu phong trừ thấp, thư cân hoạt lạc, chữa đau nhức xương khớp, tê bại. 10-12g/n]
+
+3. Saving to database (30 plants)...
+   Done! Import successful.
