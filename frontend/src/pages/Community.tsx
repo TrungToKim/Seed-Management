@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { apiFetch, apiFetchRaw } from "../api";
+import { API_BASE, apiFetch, apiFetchRaw, getToken } from "../api";
 import { useAuth } from "../useAuth";
 import {
   MessagesSquare, Send, Leaf, LogIn, UserPlus, Users, Shield, Info, RefreshCw,
@@ -47,8 +47,8 @@ export default function Community() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ws, setWs] = useState<WebSocket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const lastIdRef = useRef(0);
 
   const fetchStats = async () => {
     try {
@@ -72,31 +72,53 @@ export default function Community() {
     }
   };
 
+  // Connect to WebSocket and load initial messages + stats
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
+    fetchStats();
+    fetchMessages();
+
+    const wsProto = API_BASE.startsWith("https") ? "wss" : "ws";
+    const baseDomain = API_BASE.replace(/^https?:\/\//, "");
+    const token = getToken();
+    const wsUrl = `${wsProto}://${baseDomain}/api/community/ws${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+
+    let socket: WebSocket | null = new WebSocket(wsUrl);
+
+    socket.onopen = () => {
+      console.log("WebSocket connected");
+      setError(null);
+    };
+
+    socket.onmessage = (event) => {
       try {
-        const s = await apiFetch<CommunityStats>("/api/community/stats");
-        if (!cancelled) setStats(s);
-      } catch {
-        // stats badge is informational only
+        const data = JSON.parse(event.data);
+        if (data.type === "message") {
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === data.message.id)) return prev;
+            return [...prev, data.message];
+          });
+          // Increment total messages in stats dynamically
+          setStats((prev) => prev ? { ...prev, total_messages: prev.total_messages + 1 } : null);
+        } else if (data.type === "error") {
+          setError(data.error);
+        }
+      } catch (err) {
+        console.error("Error parsing WebSocket message:", err);
       }
-    })();
-    (async () => {
-      try {
-        const res = await apiFetchRaw("/api/community/messages?page_size=200");
-        if (cancelled) return;
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setMessages((await res.json()).items);
-        setError(null);
-      } catch {
-        if (!cancelled) setError("Không thể tải tin nhắn. Vui lòng kiểm tra kết nối server.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    };
+
+    socket.onclose = (event) => {
+      console.log("WebSocket closed", event);
+    };
+
+    socket.onerror = (err) => {
+      console.error("WebSocket error:", err);
+    };
+
+    setWs(socket);
+
     return () => {
-      cancelled = true;
+      if (socket) socket.close();
     };
   }, []);
 
@@ -104,61 +126,18 @@ export default function Community() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
 
-  // Track the newest message id so polling only fetches new ones
-  useEffect(() => {
-    lastIdRef.current = messages.reduce((max, m) => Math.max(max, m.id), 0);
-  }, [messages]);
-
-  // Real-time updates via lightweight polling
-  useEffect(() => {
-    let stopped = false;
-    const poll = async () => {
-      if (stopped || document.hidden || lastIdRef.current === 0) return;
-      try {
-        const res = await apiFetchRaw(
-          `/api/community/messages?after_id=${lastIdRef.current}&page_size=200`
-        );
-        if (stopped || !res.ok) return;
-        const data = (await res.json()) as { items: CommunityMessage[] };
-        if (!data.items?.length) return;
-        setMessages((prev) => {
-          const known = new Set(prev.map((m) => m.id));
-          const fresh = data.items.filter((m) => !known.has(m.id));
-          return fresh.length ? [...prev, ...fresh] : prev;
-        });
-      } catch {
-        // transient network errors are ignored; next poll retries
-      }
-    };
-    const interval = setInterval(poll, 4000);
-    return () => {
-      stopped = true;
-      clearInterval(interval);
-    };
-  }, []);
-
-  const send = async () => {
+  const send = () => {
     const value = input.trim();
     if (!value || sending) return;
-    setSending(true);
-    setError(null);
-    try {
-      const msg = await apiFetch<CommunityMessage>("/api/community/messages", {
-        method: "POST",
-        body: JSON.stringify({ content: value }),
-      });
-      setMessages((prev) => [...prev, msg]);
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      setSending(true);
+      setError(null);
+      ws.send(JSON.stringify({ content: value }));
       setInput("");
-      fetchStats();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "";
-      setError(
-        message === "HTTP 401"
-          ? "Bạn cần đăng nhập để gửi tin nhắn."
-          : "Gửi tin nhắn thất bại. Vui lòng thử lại."
-      );
-    } finally {
       setSending(false);
+    } else {
+      setError("Mất kết nối với máy chủ. Vui lòng tải lại trang.");
     }
   };
 
@@ -167,17 +146,17 @@ export default function Community() {
   const members = stats ? stats.members : null;
 
   return (
-    <div className="px-6 py-10 max-w-[1280px] mx-auto">
+    <div className="px-6 py-6 max-w-[1280px] mx-auto h-full flex flex-col overflow-hidden">
       {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6 flex-shrink-0">
         <div>
-          <p className="text-sm uppercase tracking-widest mb-2" style={{ color: "#7ab648", fontWeight: 700 }}>
+          <p className="text-sm uppercase tracking-widest mb-1" style={{ color: "#7ab648", fontWeight: 700 }}>
             Cộng đồng
           </p>
-          <h1 style={{ fontFamily: FS, fontSize: "clamp(24px, 3.5vw, 36px)", color: "#1c2e14", fontWeight: 700 }}>
+          <h1 style={{ fontFamily: FS, fontSize: "clamp(20px, 3vw, 32px)", color: "#1c2e14", fontWeight: 700 }}>
             Khu Vực Trao Đổi
           </h1>
-          <p style={{ color: "#6b7c5e", fontSize: 14 }}>
+          <p style={{ color: "#6b7c5e", fontSize: 13 }}>
             Chia sẻ kinh nghiệm, bài thuốc và thảo luận cùng những người yêu cây thuốc.
           </p>
         </div>
@@ -191,9 +170,9 @@ export default function Community() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
         {/* Chat panel */}
-        <div className="flex-1 rounded-3xl overflow-hidden flex flex-col" style={{ background: "#fff", border: "1.5px solid #e4ddd0", minHeight: "60vh", maxHeight: "calc(100vh - 260px)" }}>
+        <div className="flex-1 rounded-3xl overflow-hidden flex flex-col h-full min-h-0" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
           {/* Chat header */}
           <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ background: "#faf5f0", borderBottom: "1px solid #e4ddd0" }}>
             <div className="flex items-center gap-3">
@@ -360,7 +339,7 @@ export default function Community() {
         </div>
 
         {/* Sidebar */}
-        <aside className="w-full lg:w-72 flex-shrink-0 space-y-4">
+        <aside className="w-full lg:w-72 flex-shrink-0 space-y-4 lg:overflow-y-auto lg:h-full lg:pr-1">
           <div className="rounded-3xl p-6" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
             <div className="flex items-center gap-2 mb-3">
               <Leaf className="w-4 h-4" style={{ color: "#7ab648" }} />

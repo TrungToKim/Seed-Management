@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, HTTPException, Depends, Query, Header, Request, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, Depends, Query, Header, Request, File, UploadFile, Form, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -18,7 +18,7 @@ from app.database import (
     SystemSetting, get_int_setting, set_int_setting, DEFAULT_SETTINGS,
     ensure_primary_admin,
 )
-from app.auth_utils import hash_password, verify_password, create_token, get_current_user
+from app.auth_utils import hash_password, verify_password, create_token, get_current_user, get_user_from_token
 from app.chat_service import get_qa_chain
 from app.rate_limit import check_rate_limit, check_daily_limit, get_daily_count
 from app.search_utils import score_plant
@@ -50,6 +50,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Role-Based Access Control (RBAC) Configuration ──────────────────
+ROLE_PERMISSIONS = {
+    "administrator": {
+        "user:read", "user:delete", "user:update_role", "user:update_package",
+        "plant:create", "plant:update", "plant:delete",
+        "package:create", "package:update", "package:delete",
+        "settings:read", "settings:update"
+    },
+    "help": {
+        "plant:create", "plant:update", "plant:delete"
+    },
+    "customer": set()
+}
+
+def check_permission(permission: str):
+    def dependency(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+        user = get_current_user(authorization, db)
+        if not user:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        
+        user_perms = ROLE_PERMISSIONS.get(user.role, set())
+        if permission not in user_perms:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền thực hiện hành động này")
+        return user
+    return dependency
 
 @app.get("/")
 def root():
@@ -248,6 +274,78 @@ def change_password(
     db.commit()
     return {"message": "Password changed successfully"}
 
+# ── Community WebSocket Manager ──────────────────────────────────────
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        for connection in list(self.active_connections):
+            try:
+                await connection.send_json(message)
+            except Exception:
+                self.disconnect(connection)
+
+manager = ConnectionManager()
+
+@app.websocket("/api/community/ws")
+async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = None, db: Session = Depends(get_db)):
+    user = None
+    if token:
+        user = get_user_from_token(token, db)
+        
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            content = data.get("content", "").strip()
+            if not content:
+                continue
+                
+            if not user:
+                await websocket.send_json({"type": "error", "error": "Bạn cần đăng nhập để gửi tin nhắn."})
+                continue
+                
+            package = user.package if user.package else get_free_package(db)
+            if not check_daily_limit(f"community_day:user:{user.id}", package.community_per_day):
+                await websocket.send_json({
+                    "type": "error",
+                    "error": f"Bạn đã đạt giới hạn {package.community_per_day} bài đăng hôm nay. Hãy nâng cấp gói để tăng giới hạn."
+                })
+                continue
+                
+            if len(content) > 2000:
+                await websocket.send_json({"type": "error", "error": "Tin nhắn quá dài (tối đa 2000 ký tự)"})
+                continue
+                
+            msg = CommunityMessage(user_id=user.id, username=user.username, content=content)
+            db.add(msg)
+            db.commit()
+            db.refresh(msg)
+            
+            await manager.broadcast({
+                "type": "message",
+                "message": {
+                    "id": msg.id,
+                    "user_id": msg.user_id,
+                    "username": msg.username,
+                    "content": msg.content,
+                    "created_at": msg.created_at.isoformat()
+                }
+            })
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception:
+        manager.disconnect(websocket)
+
 # ── Community ───────────────────────────────────────────────────────
 
 @app.get("/api/community/messages", response_model=CommunityMessageListResponse)
@@ -278,7 +376,7 @@ def list_community_messages(
     return CommunityMessageListResponse(items=items, total=total)
 
 @app.post("/api/community/messages", response_model=CommunityMessageResponse, status_code=201)
-def create_community_message(
+async def create_community_message(
     data: CommunityMessageCreate,
     request: Request,
     authorization: Optional[str] = Header(None),
@@ -302,6 +400,18 @@ def create_community_message(
     db.add(message)
     db.commit()
     db.refresh(message)
+    
+    # Also broadcast POST messages via websocket for dual compatibility
+    await manager.broadcast({
+        "type": "message",
+        "message": {
+            "id": message.id,
+            "user_id": message.user_id,
+            "username": message.username,
+            "content": message.content,
+            "created_at": message.created_at.isoformat()
+        }
+    })
     return message
 
 
@@ -315,17 +425,11 @@ def community_stats(db: Session = Depends(get_db)):
 # ── User management (admin) ─────────────────────────────────────────
 
 @app.get("/api/users", response_model=List[UserResponse])
-def list_users(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    admin = get_current_user(authorization, db)
-    if not admin or admin.role != "administrator":
-        raise HTTPException(status_code=403, detail="Administrator access required")
+def list_users(admin: User = Depends(check_permission("user:read")), db: Session = Depends(get_db)):
     return db.query(User).order_by(User.created_at.desc()).all()
 
 @app.delete("/api/users/{user_id}", status_code=204)
-def delete_user(user_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    admin = get_current_user(authorization, db)
-    if not admin or admin.role != "administrator":
-        raise HTTPException(status_code=403, detail="Administrator access required")
+def delete_user(user_id: int, admin: User = Depends(check_permission("user:delete")), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -374,10 +478,7 @@ def list_plants(
     return PlantListResponse(items=items, total=total, page=page, page_size=page_size)
 
 @app.post("/api/plants", response_model=PlantResponse, status_code=201)
-def create_plant(data: PlantCreate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    user = get_current_user(authorization, db)
-    if not user or user.role not in ["administrator", "help"]:
-        raise HTTPException(status_code=403, detail="Administrator or Help access required")
+def create_plant(data: PlantCreate, user: User = Depends(check_permission("plant:create")), db: Session = Depends(get_db)):
     plant = Plant(**data.model_dump())
     db.add(plant)
     db.commit()
@@ -392,10 +493,7 @@ def get_plant(plant_id: int, db: Session = Depends(get_db)):
     return plant
 
 @app.put("/api/plants/{plant_id}", response_model=PlantResponse)
-def update_plant(plant_id: int, data: PlantCreate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    user = get_current_user(authorization, db)
-    if not user or user.role not in ["administrator", "help"]:
-        raise HTTPException(status_code=403, detail="Administrator or Help access required")
+def update_plant(plant_id: int, data: PlantCreate, user: User = Depends(check_permission("plant:update")), db: Session = Depends(get_db)):
     plant = db.query(Plant).filter(Plant.id == plant_id).first()
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")
@@ -406,10 +504,7 @@ def update_plant(plant_id: int, data: PlantCreate, authorization: Optional[str] 
     return plant
 
 @app.delete("/api/plants/{plant_id}", status_code=204)
-def delete_plant(plant_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    user = get_current_user(authorization, db)
-    if not user or user.role not in ["administrator", "help"]:
-        raise HTTPException(status_code=403, detail="Administrator or Help access required")
+def delete_plant(plant_id: int, user: User = Depends(check_permission("plant:delete")), db: Session = Depends(get_db)):
     plant = db.query(Plant).filter(Plant.id == plant_id).first()
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")
@@ -437,10 +532,7 @@ def list_packages(authorization: Optional[str] = Header(None), db: Session = Dep
     return query.order_by(Package.monthly_price.asc()).all()
 
 @app.post("/api/packages", response_model=PackageResponse, status_code=201)
-def create_package(data: PackageCreate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    admin = get_current_user(authorization, db)
-    if not admin or admin.role != "administrator":
-        raise HTTPException(status_code=403, detail="Administrator access required")
+def create_package(data: PackageCreate, admin: User = Depends(check_permission("package:create")), db: Session = Depends(get_db)):
     name = data.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Package name is required")
@@ -454,10 +546,7 @@ def create_package(data: PackageCreate, authorization: Optional[str] = Header(No
     return package
 
 @app.put("/api/packages/{package_id}", response_model=PackageResponse)
-def update_package(package_id: int, data: PackageUpdate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    admin = get_current_user(authorization, db)
-    if not admin or admin.role != "administrator":
-        raise HTTPException(status_code=403, detail="Administrator access required")
+def update_package(package_id: int, data: PackageUpdate, admin: User = Depends(check_permission("package:update")), db: Session = Depends(get_db)):
     package = db.query(Package).filter(Package.id == package_id).first()
     if not package:
         raise HTTPException(status_code=404, detail="Package not found")
@@ -468,10 +557,7 @@ def update_package(package_id: int, data: PackageUpdate, authorization: Optional
     return package
 
 @app.delete("/api/packages/{package_id}", status_code=204)
-def delete_package(package_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    admin = get_current_user(authorization, db)
-    if not admin or admin.role != "administrator":
-        raise HTTPException(status_code=403, detail="Administrator access required")
+def delete_package(package_id: int, admin: User = Depends(check_permission("package:delete")), db: Session = Depends(get_db)):
     package = db.query(Package).filter(Package.id == package_id).first()
     if not package:
         raise HTTPException(status_code=404, detail="Package not found")
@@ -500,10 +586,7 @@ def subscribe_package(data: SubscribeRequest, authorization: Optional[str] = Hea
     return user
 
 @app.put("/api/users/{user_id}/package", response_model=UserResponse)
-def set_user_package(user_id: int, data: UserPackageUpdate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    admin = get_current_user(authorization, db)
-    if not admin or admin.role != "administrator":
-        raise HTTPException(status_code=403, detail="Administrator access required")
+def set_user_package(user_id: int, data: UserPackageUpdate, admin: User = Depends(check_permission("user:update_package")), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -519,10 +602,7 @@ class UserRoleUpdate(BaseModel):
     role: str
 
 @app.put("/api/users/{user_id}/role", response_model=UserResponse)
-def set_user_role(user_id: int, data: UserRoleUpdate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    admin = get_current_user(authorization, db)
-    if not admin or admin.role != "administrator":
-        raise HTTPException(status_code=403, detail="Administrator access required")
+def set_user_role(user_id: int, data: UserRoleUpdate, admin: User = Depends(check_permission("user:update_role")), db: Session = Depends(get_db)):
     if data.role not in ["administrator", "customer", "help"]:
         raise HTTPException(status_code=400, detail="Invalid role")
     user = db.query(User).filter(User.id == user_id).first()
@@ -541,10 +621,7 @@ def set_user_role(user_id: int, data: UserRoleUpdate, authorization: Optional[st
 # ── System settings (admin) ──────────────────────────────────────────
 
 @app.get("/api/admin/settings")
-def get_admin_settings(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    admin = get_current_user(authorization, db)
-    if not admin or admin.role != "administrator":
-        raise HTTPException(status_code=403, detail="Administrator access required")
+def get_admin_settings(admin: User = Depends(check_permission("settings:read")), db: Session = Depends(get_db)):
     return {
         key: get_int_setting(db, key)
         for key in DEFAULT_SETTINGS
@@ -556,13 +633,10 @@ class GuestChatLimitUpdate(BaseModel):
 @app.put("/api/admin/settings/guest-chat-limit", response_model=dict)
 def update_guest_chat_limit(
     data: GuestChatLimitUpdate,
-    authorization: Optional[str] = Header(None),
+    admin: User = Depends(check_permission("settings:update")),
     db: Session = Depends(get_db),
 ):
     """Adjust the daily chat message limit applied to users who are not logged in."""
-    admin = get_current_user(authorization, db)
-    if not admin or admin.role != "administrator":
-        raise HTTPException(status_code=403, detail="Administrator access required")
     if data.guest_chat_per_day < 0:
         raise HTTPException(status_code=400, detail="Giới hạn phải là số không âm (0 = không giới hạn)")
     set_int_setting(db, "guest_chat_per_day", data.guest_chat_per_day)

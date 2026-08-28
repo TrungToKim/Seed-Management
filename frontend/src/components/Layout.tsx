@@ -29,7 +29,7 @@ export default function Layout() {
     setMenuOpen(false);
   };
 
-  const isChatRoute = location.pathname === "/chat";
+  const isFixedRoute = location.pathname === "/chat" || location.pathname === "/community";
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#f5f0e8", fontFamily: FF }}>
@@ -256,12 +256,12 @@ export default function Layout() {
         )}
       </header>
 
-      <main className={isChatRoute ? "h-[calc(100vh-73px)] overflow-hidden" : "flex-1"}>
+      <main className={isFixedRoute ? "h-[calc(100vh-73px)] overflow-hidden" : "flex-1"}>
         <Outlet />
       </main>
 
       {/* Footer */}
-      {!isChatRoute && (
+      {!isFixedRoute && (
         <footer style={{ background: "#1c2e14", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="px-6 py-10 max-w-[1280px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2.5">

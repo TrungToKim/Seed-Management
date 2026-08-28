@@ -46,8 +46,10 @@ def extract_token(authorization: Optional[str]) -> Optional[str]:
 
 def get_current_user(authorization: Optional[str], db: Session) -> Optional[User]:
     token = extract_token(authorization)
-    if not token:
-        return None
+    return get_user_from_token(token, db) if token else None
+
+
+def get_user_from_token(token: str, db: Session) -> Optional[User]:
     try:
         user_id_s, exp_s, signature = token.split(".")
         payload = f"{user_id_s}.{exp_s}"
