@@ -169,6 +169,95 @@ def post_chat(
         sources=sources,
     )
 
+@app.websocket("/api/chat/ws")
+async def chat_websocket_endpoint(
+    websocket: WebSocket,
+    token: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    global qa_chain
+    if qa_chain is None:
+        qa_chain = get_qa_chain()
+        
+    await websocket.accept()
+    
+    if qa_chain is None:
+        await websocket.send_json({"type": "error", "error": "Dịch vụ chat không khả dụng (vector DB chưa được khởi tạo)."})
+        await websocket.close()
+        return
+
+    user = None
+    if token:
+        user = get_user_from_token(token, db)
+
+    ip = websocket.client.host if websocket.client else "unknown"
+    
+    # Gửi quota ban đầu
+    quota_info = get_chat_quota(user, db, ip)
+    await websocket.send_json({"type": "quota", "quota": quota_info})
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            query = data.get("query", "").strip()
+            history_data = data.get("history", [])
+            
+            if not query:
+                continue
+                
+            if user:
+                user = db.merge(user)
+                db.refresh(user)
+                rate_key = f"user:{user.id}"
+            else:
+                rate_key = f"ip:{ip}"
+                
+            if user:
+                package = user.package if user.package else get_free_package(db)
+                day_limit = package.chat_per_day
+                minute_limit = package.chat_per_minute
+                day_detail = f"Bạn đã đạt giới hạn {package.chat_per_day} lượt chat hôm nay. Hãy nâng cấp gói để tăng giới hạn."
+            else:
+                day_limit = get_int_setting(db, "guest_chat_per_day")
+                free_pkg = get_free_package(db)
+                minute_limit = free_pkg.chat_per_minute
+                day_detail = f"Khách chưa đăng nhập chỉ được dùng tối đa {day_limit} tin nhắn mỗi ngày. Đăng nhập để nhận giới hạn cao hơn."
+                
+            if not check_daily_limit(f"chat_day:{rate_key}", day_limit):
+                await websocket.send_json({"type": "error", "error": day_detail})
+                continue
+                
+            if not check_rate_limit(f"chat_min:{rate_key}", minute_limit, 60):
+                await websocket.send_json({
+                    "type": "error",
+                    "error": f"Bạn đang hỏi quá nhanh (tối đa {minute_limit} lượt/phút). Vui lòng chờ một lát."
+                })
+                continue
+                
+            try:
+                result = qa_chain.invoke({"question": query, "history": history_data})
+                sources = list(set(
+                    doc.metadata.get("source", "Unknown")
+                    for doc in result["source_documents"]
+                ))
+                
+                await websocket.send_json({
+                    "type": "answer",
+                    "answer": result["result"],
+                    "sources": sources,
+                })
+                
+                updated_quota = get_chat_quota(user, db, ip)
+                await websocket.send_json({"type": "quota", "quota": updated_quota})
+                
+            except Exception as e:
+                await websocket.send_json({"type": "error", "error": f"Lỗi dịch vụ chat: {str(e)}"})
+                
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+
 # ── Auth ────────────────────────────────────────────────────────────
 
 @app.post("/api/auth/register", response_model=AuthResponse, status_code=201)

@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
-  Send, Bot, User, RefreshCw, Copy, ThumbsUp, ThumbsDown, Plus, Leaf, BookOpen, Search, Droplets, LogIn, UserPlus, Info,
+  Send, Bot, User, RefreshCw, Copy, ThumbsUp, ThumbsDown, Plus, Leaf, BookOpen, Search, Droplets, LogIn, UserPlus, Info, Menu, X,
 } from "lucide-react";
-import { apiFetch, apiFetchRaw, type ChatQuota } from "../api";
+import { type ChatQuota, getToken, API_BASE } from "../api";
 import { useAuth } from "../useAuth";
 
 interface Message {
@@ -38,32 +38,99 @@ export default function ChatBot() {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
   const [quota, setQuota] = useState<ChatQuota | null>(null);
+  
+  // Responsive sidebar state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // WebSocket states
+  const [socketConnected, setSocketConnected] = useState(false);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const idCounter = useRef(0);
+  const socketRef = useRef<WebSocket | null>(null);
 
-  const refreshQuota = useCallback(async () => {
-    try {
-      setQuota(await apiFetch<ChatQuota>("/api/chat/quota"));
-    } catch {
-      // quota display is informational only
-    }
-  }, []);
-
+  // Setup WebSocket connection
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const q = await apiFetch<ChatQuota>("/api/chat/quota");
-        if (!cancelled) setQuota(q);
-      } catch {
-        // quota display is informational only
-      }
-    })();
+    let active = true;
+    let socket: WebSocket | null = null;
+    let reconnectTimeout: any = null;
+
+    function connect() {
+      if (!active) return;
+      const wsProto = API_BASE.startsWith("https") ? "wss" : "ws";
+      const baseDomain = API_BASE.replace(/^https?:\/\//, "").replace(/\/$/, "");
+      const token = getToken();
+      const wsUrl = `${wsProto}://${baseDomain}/api/chat/ws${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+
+      console.log("Connecting chat WebSocket to:", wsUrl);
+      socket = new WebSocket(wsUrl);
+      socketRef.current = socket;
+
+      socket.onopen = () => {
+        if (!active) return;
+        console.log("Chat WebSocket connected");
+        setSocketConnected(true);
+      };
+
+      socket.onmessage = (event) => {
+        if (!active) return;
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "answer") {
+            const botMsg: Message = {
+              id: `m${++idCounter.current}`,
+              role: "assistant",
+              content: data.answer,
+              sources: data.sources || [],
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, botMsg]);
+            setLoading(false);
+          } else if (data.type === "quota") {
+            setQuota(data.quota);
+          } else if (data.type === "error") {
+            const botMsg: Message = {
+              id: `m${++idCounter.current}`,
+              role: "assistant",
+              content: data.error,
+              sources: [],
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, botMsg]);
+            setLoading(false);
+          }
+        } catch (err) {
+          console.error("Error processing WebSocket message:", err);
+        }
+      };
+
+      socket.onclose = () => {
+        if (!active) return;
+        console.log("Chat WebSocket disconnected, scheduling reconnect...");
+        setSocketConnected(false);
+        reconnectTimeout = setTimeout(connect, 3000);
+      };
+
+      socket.onerror = (err) => {
+        console.error("Chat WebSocket error:", err);
+        socket?.close();
+      };
+    }
+
+    connect();
+
     return () => {
-      cancelled = true;
+      active = false;
+      if (socket) {
+        socket.close();
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      socketRef.current = null;
     };
   }, [user]);
 
+  // Load history from localStorage
   useEffect(() => {
     const stored = localStorage.getItem("tv_chat_search_history");
     if (stored) {
@@ -79,6 +146,7 @@ export default function ChatBot() {
     }
   }, [user]);
 
+  // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
@@ -87,6 +155,7 @@ export default function ChatBot() {
     const value = (text ?? input).trim();
     if (!value || loading) return;
     setInput("");
+    setSidebarOpen(false); // Close sidebar on mobile if clicked a search history item
 
     // Save to search history
     const hasMembership = !!user && user.role !== "customer";
@@ -108,54 +177,23 @@ export default function ChatBot() {
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
-    try {
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       const history = messages
         .filter((m) => m.role !== "assistant" || m.sources.length > 0 || m.id !== "init")
         .slice(-8)
         .map((m) => ({ role: m.role, content: m.content }));
-      const res = await apiFetchRaw("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: value, history }),
-      });
-      if (!res.ok) {
-        let detail = "";
-        try {
-          const err = await res.json();
-          detail = typeof err.detail === "string" ? err.detail : "";
-        } catch {
-          // ignore malformed error bodies
-        }
-        throw new Error(detail || (res.status === 429 ? "Bạn đã đạt giới hạn tin nhắn." : `HTTP ${res.status}`));
-      }
-      const data = await res.json();
+      
+      socketRef.current.send(JSON.stringify({ query: value, history }));
+    } else {
       const botMsg: Message = {
         id: `m${++idCounter.current}`,
         role: "assistant",
-        content: data.status === "success" ? data.answer : "Đã có lỗi xảy ra từ server.",
-        sources: data.status === "success" ? data.sources : [],
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, botMsg]);
-    } catch (error) {
-      console.error("Lỗi gọi API:", error);
-      const fallback =
-        error instanceof Error && error.message.startsWith("HTTP")
-          ? "Không thể kết nối đến Backend. Hãy kiểm tra lại server FastAPI."
-          : error instanceof Error
-            ? error.message
-            : "Không thể kết nối đến Backend. Hãy kiểm tra lại server FastAPI.";
-      const botMsg: Message = {
-        id: `m${++idCounter.current}`,
-        role: "assistant",
-        content: fallback,
+        content: "Không có kết nối đến máy chủ. Đang chờ kết nối lại...",
         sources: [],
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, botMsg]);
-    } finally {
       setLoading(false);
-      refreshQuota();
     }
   }
 
@@ -179,8 +217,17 @@ export default function ChatBot() {
   }
 
   function newChat() {
-    setMessages([{ id: "init", role: "assistant", content: "Xin chào! Tôi là **Thực Vật Bot**, trợ lý AI tra cứu cây thuốc Việt Nam. Tôi có thể giúp bạn tra cứu công dụng, bài thuốc dân gian và cách sử dụng các loại cây thuốc.\n\nBạn muốn hỏi gì về cây thuốc hôm nay?", sources: [], timestamp: new Date() }]);
+    setMessages([
+      {
+        id: "init",
+        role: "assistant",
+        content: "Xin chào! Tôi là **Thực Vật Bot**, trợ lý AI tra cứu cây thuốc Việt Nam. Tôi có thể giúp bạn tra cứu công dụng, bài thuốc dân gian và cách sử dụng các loại cây thuốc.\n\nBạn muốn hỏi gì về cây thuốc hôm nay?",
+        sources: [],
+        timestamp: new Date(),
+      },
+    ]);
     setInput("");
+    setSidebarOpen(false);
   }
 
   function renderMarkdown(text: string) {
@@ -208,19 +255,38 @@ export default function ChatBot() {
   const guestExhausted = !user && !!quota && quota.limit > 0 && (quota.remaining ?? 0) <= 0;
 
   return (
-    <div className="flex h-full w-full overflow-hidden" style={{ background: "#faf5f0" }}>
+    <div className="flex h-full w-full overflow-hidden relative" style={{ background: "#faf5f0" }}>
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/45 md:hidden transition-opacity"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-60 flex-shrink-0 flex flex-col overflow-hidden" style={{ background: "#1c2e14", borderRight: "1px solid #2e4a24" }}>
-        <div className="p-4">
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-60 flex-shrink-0 flex flex-col overflow-hidden transition-transform duration-300 transform md:relative md:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+        style={{ background: "#1c2e14", borderRight: "1px solid #2e4a24" }}
+      >
+        <div className="p-4 flex items-center justify-between gap-2">
           <button
             onClick={newChat}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm transition-colors"
             style={{ background: "#7ab648", color: "#fff", fontWeight: 700 }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "#5e9a32")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "#7ab648")}
           >
             <Plus className="w-4 h-4" />
             Cuộc trò chuyện mới
+          </button>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden p-2 rounded-lg text-[#8fae83] hover:text-white"
+          >
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -268,10 +334,16 @@ export default function ChatBot() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Chat header */}
         <div
-          className="flex items-center justify-between px-6 py-3 flex-shrink-0"
+          className="flex items-center justify-between px-4 sm:px-6 py-3 flex-shrink-0"
           style={{ background: "#fff", borderBottom: "1px solid #e8e2da" }}
         >
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden p-2 rounded-lg flex items-center justify-center border border-[#e8e2da] bg-white text-[#1c2e14] hover:bg-[#faf5f0]"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
             <div
               className="w-9 h-9 rounded-full flex items-center justify-center"
               style={{ background: "linear-gradient(135deg, #2d5a27 0%, #7ab648 100%)" }}
@@ -281,8 +353,10 @@ export default function ChatBot() {
             <div>
               <p style={{ color: "#1c2e14", fontWeight: 800, fontSize: 15 }}>Thực Vật Bot</p>
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full" style={{ background: "#27ae60" }} />
-                <span style={{ color: "#888", fontSize: 12 }}>Online · Trợ lý cây thuốc Việt Nam</span>
+                <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: socketConnected ? "#27ae60" : "#c0392b" }} />
+                <span style={{ color: "#888", fontSize: 12 }}>
+                  {socketConnected ? "Online" : "Mất kết nối..."} · Trợ lý cây thuốc Việt Nam
+                </span>
               </div>
             </div>
           </div>
@@ -294,12 +368,12 @@ export default function ChatBot() {
             onMouseLeave={(e) => (e.currentTarget.style.color = "#888")}
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            Xóa hội thoại
+            <span className="hidden sm:inline">Xóa hội thoại</span>
           </button>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
           {messages.map((msg) => (
             <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
               {/* Avatar */}
@@ -322,9 +396,9 @@ export default function ChatBot() {
               </div>
 
               {/* Bubble */}
-              <div className={`flex flex-col max-w-[72%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
+              <div className={`flex flex-col max-w-[85%] sm:max-w-[72%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
                 <div
-                  className="px-4 py-3 rounded-2xl text-sm"
+                  className="px-4 py-3 rounded-2xl text-sm break-words"
                   style={
                     msg.role === "user"
                       ? { background: "#2d5a27", color: "#fff", borderBottomRightRadius: 4 }
@@ -418,7 +492,7 @@ export default function ChatBot() {
 
           {/* Suggested prompts — only on first message */}
           {messages.length === 1 && !loading && (
-            <div className="grid grid-cols-2 gap-3 mt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
               {SUGGESTED_PROMPTS.map((p) => {
                 const Icon = p.icon;
                 return (
@@ -448,10 +522,10 @@ export default function ChatBot() {
         </div>
 
         {/* Input area */}
-        <div className="flex-shrink-0 px-6 py-4" style={{ background: "#fff", borderTop: "1px solid #e8e2da" }}>
+        <div className="flex-shrink-0 px-4 sm:px-6 py-4" style={{ background: "#fff", borderTop: "1px solid #e8e2da" }}>
           {!user && (
             <div
-              className="flex flex-col sm:flex-row items-center justify-between gap-2 mb-3 px-4 py-2.5 rounded-xl"
+              className="flex flex-col lg:flex-row items-center justify-between gap-3 mb-3 px-4 py-2.5 rounded-xl"
               style={{ background: "#eaf0e4", border: "1.5px dashed #a8c896" }}
             >
               <div className="flex items-center gap-2">
@@ -464,10 +538,10 @@ export default function ChatBot() {
                   tin nhắn hôm nay. Đăng nhập để mở khoá giới hạn cao hơn theo gói.
                 </p>
               </div>
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex gap-2 flex-shrink-0 w-full lg:w-auto justify-end">
                 <Link
                   to="/login"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs no-underline transition-all"
+                  className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs no-underline transition-all flex-1 lg:flex-initial"
                   style={{ background: "#2d5a27", color: "#fff", fontWeight: 700 }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#1e3f1a")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "#2d5a27")}
@@ -476,7 +550,7 @@ export default function ChatBot() {
                 </Link>
                 <Link
                   to="/register"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs no-underline transition-all"
+                  className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs no-underline transition-all flex-1 lg:flex-initial"
                   style={{ background: "#fff", color: "#2d5a27", fontWeight: 700, border: "1px solid #a8c896" }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#d7e8cd")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
