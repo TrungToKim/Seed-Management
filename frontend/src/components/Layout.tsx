@@ -29,6 +29,8 @@ export default function Layout() {
     setMenuOpen(false);
   };
 
+  const isChatRoute = location.pathname === "/chat";
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#f5f0e8", fontFamily: FF }}>
       <header
@@ -254,36 +256,38 @@ export default function Layout() {
         )}
       </header>
 
-      <main className="flex-1">
+      <main className={isChatRoute ? "h-[calc(100vh-73px)] overflow-hidden" : "flex-1"}>
         <Outlet />
       </main>
 
       {/* Footer */}
-      <footer style={{ background: "#1c2e14", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-        <div className="px-6 py-10 max-w-[1280px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#7ab648" }}>
-              <Leaf className="w-4 h-4 text-white" />
+      {!isChatRoute && (
+        <footer style={{ background: "#1c2e14", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="px-6 py-10 max-w-[1280px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#7ab648" }}>
+                <Leaf className="w-4 h-4 text-white" />
+              </div>
+              <span style={{ fontFamily: FS, fontSize: 17, color: "#fff", fontWeight: 700 }}>
+                Thực Vật <span style={{ color: "#7ab648", fontStyle: "italic" }}>Việt</span>
+              </span>
             </div>
-            <span style={{ fontFamily: FS, fontSize: 17, color: "#fff", fontWeight: 700 }}>
-              Thực Vật <span style={{ color: "#7ab648", fontStyle: "italic" }}>Việt</span>
-            </span>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>
+              © {new Date().getFullYear()} Thực Vật Việt · Gìn giữ và phát triển kho tàng cây thuốc Việt Nam 🌿
+            </p>
+            <div className="flex gap-6">
+              {["Giới thiệu", "Liên hệ", "Điều khoản"].map((link) => (
+                <a key={link} href="#" className="text-sm no-underline" style={{ color: "rgba(255,255,255,0.5)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "#7ab648")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.5)")}
+                >
+                  {link}
+                </a>
+              ))}
+            </div>
           </div>
-          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>
-            © {new Date().getFullYear()} Thực Vật Việt · Gìn giữ và phát triển kho tàng cây thuốc Việt Nam 🌿
-          </p>
-          <div className="flex gap-6">
-            {["Giới thiệu", "Liên hệ", "Điều khoản"].map((link) => (
-              <a key={link} href="#" className="text-sm no-underline" style={{ color: "rgba(255,255,255,0.5)" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#7ab648")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.5)")}
-              >
-                {link}
-              </a>
-            ))}
-          </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }

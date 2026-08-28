@@ -208,7 +208,7 @@ export default function ChatBot() {
   const guestExhausted = !user && !!quota && quota.limit > 0 && (quota.remaining ?? 0) <= 0;
 
   return (
-    <div className="flex min-h-[calc(100vh-73px)] overflow-hidden" style={{ background: "#faf5f0" }}>
+    <div className="flex h-full w-full overflow-hidden" style={{ background: "#faf5f0" }}>
       {/* Sidebar */}
       <aside className="w-60 flex-shrink-0 flex flex-col overflow-hidden" style={{ background: "#1c2e14", borderRight: "1px solid #2e4a24" }}>
         <div className="p-4">
