@@ -39,14 +39,21 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Mount static files for uploads (avatars)
-os.makedirs("uploads/avatars", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+# Base directory for reliable relative file paths
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
+os.makedirs(AVATAR_DIR, exist_ok=True)
 
-origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+# Mount static files for uploads (avatars)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
+raw_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+origins = [o.strip() for o in raw_origins if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -329,10 +336,13 @@ async def update_profile(
     user.email = email
     user.full_name = full_name
     
-    if avatar:
-        os.makedirs("uploads/avatars", exist_ok=True)
-        filename = f"{user.id}_{avatar.filename}"
-        filepath = os.path.join("uploads/avatars", filename)
+    if avatar and avatar.filename:
+        import time
+        ext = os.path.splitext(avatar.filename)[1].lower()
+        if ext not in [".jpg", ".jpeg", ".png", ".webp", ".gif"]:
+            ext = ".jpg"
+        filename = f"{user.id}_{int(time.time())}{ext}"
+        filepath = os.path.join(AVATAR_DIR, filename)
         with open(filepath, "wb") as buffer:
             content = await avatar.read()
             buffer.write(content)

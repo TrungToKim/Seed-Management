@@ -13,23 +13,44 @@ try:
 except ImportError:
     HAS_PGVECTOR = False
 
+_backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(_backend_dir, ".env"))
 load_dotenv()
 
 SQLALCHEMY_URL = os.getenv("DB_URL") or os.getenv("DATABASE_URL")
-if SQLALCHEMY_URL and SQLALCHEMY_URL.startswith("postgresql://"):
-    SQLALCHEMY_URL = SQLALCHEMY_URL.replace("postgresql://", "postgresql+psycopg2://")
+if SQLALCHEMY_URL:
+    if SQLALCHEMY_URL.startswith("postgres://"):
+        SQLALCHEMY_URL = SQLALCHEMY_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif SQLALCHEMY_URL.startswith("postgresql://"):
+        SQLALCHEMY_URL = SQLALCHEMY_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 engine = None
 SessionLocal = None
 Base = declarative_base()
 
+if SQLALCHEMY_URL:
+    try:
+        engine = create_engine(
+            SQLALCHEMY_URL,
+            connect_args={"connect_timeout": 15},
+            pool_pre_ping=True,
+            pool_recycle=300,
+        )
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    except Exception as e:
+        print(f"Warning: Could not create initial database engine: {e}")
 
 _db_initialized = False
 
 def get_engine():
     global engine, SessionLocal
     if engine is None and SQLALCHEMY_URL:
-        engine = create_engine(SQLALCHEMY_URL, connect_args={"connect_timeout": 5})
+        engine = create_engine(
+            SQLALCHEMY_URL,
+            connect_args={"connect_timeout": 15},
+            pool_pre_ping=True,
+            pool_recycle=300,
+        )
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     return engine
 

@@ -27,9 +27,21 @@ def ensure_database():
         print(f"Could not parse DB_URL: {probe}")
         return
 
+    # First try connecting directly to the database (standard for Neon, Supabase, managed Postgres)
+    try:
+        conn = psycopg2.connect(probe, connect_timeout=10)
+        conn.close()
+        print(f"Connected to database '{dbname}' successfully.")
+        init_db()
+        print("Tables ensured.")
+        return
+    except Exception as e:
+        print(f"Direct connection to '{dbname}' check: {e}")
+
+    # Fallback for local Postgres where database might need to be created
     maint_url = probe.replace(f"/{dbname}", "/postgres", 1)
     try:
-        conn = psycopg2.connect(maint_url)
+        conn = psycopg2.connect(maint_url, connect_timeout=10)
         conn.autocommit = True
         cur = conn.cursor()
         cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (dbname,))
@@ -37,7 +49,7 @@ def ensure_database():
         cur.close()
         conn.close()
         if not exists:
-            conn = psycopg2.connect(maint_url)
+            conn = psycopg2.connect(maint_url, connect_timeout=10)
             conn.autocommit = True
             cur = conn.cursor()
             cur.execute(f'CREATE DATABASE "{dbname}"')
@@ -47,7 +59,7 @@ def ensure_database():
         else:
             print(f"Database '{dbname}' already exists.")
     except Exception as e:
-        print(f"Could not create database '{dbname}': {e}")
+        print(f"Could not connect to maintenance database: {e}")
 
     init_db()
     print("Tables ensured.")

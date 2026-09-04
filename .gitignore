@@ -1,1 +1,22 @@
+# Logs & cache
 *.log
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment files & Secrets (Strictly ignore)
+.env
+.env.*
+!.env.example
+.env.local
+
+# Dependencies & Build
+node_modules/
+dist/
+venv/
+.venv/
+
+# Neon & Agent metadata
+.neon
+.agents/
+skills-lock.json
