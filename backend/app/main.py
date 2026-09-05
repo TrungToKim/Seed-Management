@@ -915,8 +915,14 @@ def get_article(id_or_slug: str, db: Session = Depends(get_db)):
     return article
 
 @app.post("/api/articles", response_model=ArticleResponse, status_code=201)
-def create_article(data: ArticleCreate, admin: User = Depends(check_permission("plant:create")), db: Session = Depends(get_db)):
+def create_article(data: ArticleCreate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    user = get_current_user(authorization, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Bạn cần đăng nhập để đăng bài viết chia sẻ kinh nghiệm")
+
     base_slug = slugify(data.title)
+    if not base_slug:
+        base_slug = "bai-viet"
     candidate = base_slug
     idx = 1
     while db.query(Article).filter(Article.slug == candidate).first():
@@ -926,11 +932,11 @@ def create_article(data: ArticleCreate, admin: User = Depends(check_permission("
     art = Article(
         title=data.title,
         slug=candidate,
-        summary=data.summary,
+        summary=data.summary or (data.content[:150] + "..." if len(data.content) > 150 else data.content),
         content=data.content,
-        image_url=data.image_url,
-        category=data.category or "Dược liệu",
-        author=data.author or admin.full_name or admin.username
+        image_url=data.image_url if data.image_url and data.image_url.strip() else None,
+        category=data.category or "Chia sẻ kinh nghiệm",
+        author=data.author or user.full_name or user.username
     )
     db.add(art)
     db.commit()

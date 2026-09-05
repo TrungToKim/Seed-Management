@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import { API_BASE, apiFetch, apiFetchRaw, getToken } from "../api";
 import { useAuth } from "../useAuth";
 import {
-  MessagesSquare, Send, Leaf, LogIn, UserPlus, Users, Shield, Info, RefreshCw,
+  MessagesSquare, Send, Leaf, LogIn, UserPlus, Users, Shield, Info, RefreshCw, PenTool
 } from "lucide-react";
+import CreateArticleModal from "../components/CreateArticleModal";
 
 const FS = "'Playfair Display', Georgia, serif";
 
@@ -48,6 +49,7 @@ export default function Community() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ws, setWs] = useState<WebSocket | null>(null);
+  const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -169,7 +171,14 @@ export default function Community() {
             Chia sẻ kinh nghiệm, bài thuốc và thảo luận cùng những người yêu cây thuốc.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setIsArticleModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-xs"
+            style={{ background: "#2d5a27", color: "#fff" }}
+          >
+            <PenTool className="w-4 h-4" /> Viết bài chia sẻ
+          </button>
           <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{ background: "#eaf0e4", color: "#2d5a27", fontWeight: 700, fontSize: 13 }}>
             <MessagesSquare className="w-4 h-4" /> {messages.length} tin nhắn
           </div>
@@ -178,6 +187,11 @@ export default function Community() {
           </div>
         </div>
       </div>
+
+      <CreateArticleModal
+        isOpen={isArticleModalOpen}
+        onClose={() => setIsArticleModalOpen(false)}
+      />
 
       <div className="flex flex-col lg:flex-row gap-6 lg:h-[650px]">
         {/* Chat panel */}

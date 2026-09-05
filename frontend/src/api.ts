@@ -119,6 +119,8 @@ export interface Article {
   created_at: string;
 }
 
+export type ArticleResponse = Article;
+
 export interface ArticleListResponse {
   items: Article[];
   total: number;

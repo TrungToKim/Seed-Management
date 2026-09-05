@@ -1,22 +1,28 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Calendar, User } from "lucide-react";
+import { BookOpen, Calendar, User, PenTool } from "lucide-react";
 import SEO from "../components/SEO";
 import type { ArticleListResponse } from "../api";
 import { apiFetch } from "../api";
+import CreateArticleModal from "../components/CreateArticleModal";
 
 export default function ArticlesPage() {
   const [articlesData, setArticlesData] = useState<ArticleListResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  useEffect(() => {
+  const fetchArticles = () => {
     setLoading(true);
-    apiFetch<ArticleListResponse>("/api/articles?page=1&page_size=12")
+    apiFetch<ArticleListResponse>("/api/articles?page=1&page_size=20")
       .then((res) => {
         setArticlesData(res);
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchArticles();
   }, []);
 
   return (
@@ -27,18 +33,36 @@ export default function ArticlesPage() {
       />
 
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 to-teal-950 text-white p-8 sm:p-12 rounded-3xl shadow-lg space-y-3">
-        <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
-          <BookOpen className="w-4 h-4" />
-          <span>Cẩm nang Y học dân gian</span>
-        </span>
-        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-          Kiến Thức & Kinh Nghiệm Dược Liệu
-        </h1>
-        <p className="text-xs sm:text-sm text-emerald-100/80 max-w-2xl leading-relaxed">
-          Tổng hợp các bài nghiên cứu, hướng dẫn nhận biết và phương pháp sử dụng cây thuốc Nam an toàn từ chuyên gia.
-        </p>
+      <div className="bg-gradient-to-r from-emerald-900 via-emerald-950 to-teal-950 text-white p-6 sm:p-10 rounded-3xl shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="space-y-2 max-w-2xl">
+          <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+            <BookOpen className="w-4 h-4" />
+            <span>Cẩm nang Y học dân gian</span>
+          </span>
+          <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
+            Kiến Thức & Kinh Nghiệm Dược Liệu
+          </h1>
+          <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed">
+            Tổng hợp các bài nghiên cứu, hướng dẫn nhận biết và chia sẻ kinh nghiệm sử dụng cây thuốc Nam từ cộng đồng và chuyên gia.
+          </p>
+        </div>
+
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="flex-shrink-0 flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-xs sm:text-sm font-extrabold shadow-md hover:shadow-lg transition-all"
+        >
+          <PenTool className="w-4 h-4" />
+          <span>Viết Bài Chia Sẻ</span>
+        </button>
       </div>
+
+      <CreateArticleModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={() => {
+          fetchArticles();
+        }}
+      />
 
       {/* Articles Grid */}
       {loading ? (
