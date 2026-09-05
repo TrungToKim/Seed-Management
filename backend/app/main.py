@@ -9,14 +9,16 @@ from pydantic import BaseModel
 
 from app.database import (
     get_db, get_engine, init_db, Plant, Tag, User, CommunityMessage, Package,
-    PlantResponse, PlantListResponse, PlantCreate,
+    PlantImage, PlantReference, UserFavorite, Article, SearchLog, slugify,
+    PlantResponse, PlantListResponse, PlantCreate, PlantImageResponse, PlantReferenceResponse,
     TagResponse, ChatRequest, ChatResponse,
     UserCreate, UserLogin, UserResponse, AuthResponse,
     PackageResponse, PackageCreate, PackageUpdate, UserPackageUpdate, SubscribeRequest,
     CommunityMessageCreate, CommunityMessageResponse, CommunityMessageListResponse,
+    ArticleResponse, ArticleCreate, ArticleListResponse, FavoriteSyncRequest,
     get_free_package,
     SystemSetting, get_int_setting, set_int_setting, DEFAULT_SETTINGS,
-    ensure_primary_admin,
+    ensure_primary_admin, populate_plant_slugs_and_seeds
 )
 from app.auth_utils import hash_password, verify_password, create_token, get_current_user, get_user_from_token
 from app.chat_service import get_qa_chain
@@ -540,7 +542,7 @@ def delete_user(user_id: int, admin: User = Depends(check_permission("user:delet
     db.commit()
     return None
 
-# ── Plants CRUD ──────────────────────────────────────────────────────
+# ── Plants CRUD & Exploration ────────────────────────────────────────
 
 @app.get("/api/plants", response_model=PlantListResponse)
 def list_plants(
@@ -548,47 +550,224 @@ def list_plants(
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
     tag: Optional[str] = None,
+    family: Optional[str] = None,
+    used_part: Optional[str] = None,
+    region: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    featured: Optional[bool] = None,
+    authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ):
+    user = get_current_user(authorization, db)
+    fav_ids = set()
+    if user:
+        fav_ids = set(f.plant_id for f in db.query(UserFavorite).filter(UserFavorite.user_id == user.id).all())
+
     query = db.query(Plant)
     if tag:
         query = query.join(Plant.tags).filter(Tag.tag_name == tag)
-    
-    if search:
-        # Fetch candidate plants and score them in Python for diacritics/partial fuzzy matching
+    if family:
+        query = query.filter(Plant.family.ilike(f"%{family}%"))
+    if used_part:
+        query = query.filter(Plant.used_parts.ilike(f"%{used_part}%"))
+    if region:
+        query = query.filter(Plant.region.ilike(f"%{region}%"))
+    if featured is not None:
+        query = query.filter(Plant.featured == featured)
+
+    if search and search.strip():
+        s_clean = search.strip()
+        try:
+            db.add(SearchLog(query=s_clean, user_id=user.id if user else None))
+            db.commit()
+        except Exception:
+            db.rollback()
+
         all_plants = query.all()
         scored_plants = []
         for p in all_plants:
-            score = score_plant(p, search)
+            score = score_plant(p, s_clean)
             if score > 0:
                 scored_plants.append((p, score))
-        
-        # Sort by match score descending
         scored_plants.sort(key=lambda x: x[1], reverse=True)
-        
         total = len(scored_plants)
         start = (page - 1) * page_size
         end = start + page_size
-        items = [p for p, score in scored_plants[start:end]]
+        items = [p for p, s in scored_plants[start:end]]
     else:
+        if sort_by == "name_asc":
+            query = query.order_by(Plant.common_name.asc())
+        elif sort_by == "name_desc":
+            query = query.order_by(Plant.common_name.desc())
+        elif sort_by == "popular":
+            query = query.order_by(Plant.views_count.desc(), Plant.id.desc())
+        elif sort_by == "newest":
+            query = query.order_by(Plant.id.desc())
+        else:
+            query = query.order_by(Plant.id.asc())
+
         total = query.count()
         items = query.offset((page - 1) * page_size).limit(page_size).all()
-        
+
+    for item in items:
+        item.is_favorite = item.id in fav_ids
+
     return PlantListResponse(items=items, total=total, page=page, page_size=page_size)
+
+@app.get("/api/plants/autocomplete")
+def autocomplete_plants(q: str = Query("", min_length=1), db: Session = Depends(get_db)):
+    if not q.strip():
+        return []
+    s_clean = q.strip()
+    plants = db.query(Plant).all()
+    matches = []
+    for p in plants:
+        score = score_plant(p, s_clean)
+        if score > 0:
+            matches.append((p, score))
+    matches.sort(key=lambda x: x[1], reverse=True)
+    results = []
+    for p, _ in matches[:8]:
+        results.append({
+            "id": p.id,
+            "common_name": p.common_name,
+            "scientific_name": p.scientific_name,
+            "family": p.family,
+            "slug": p.slug or str(p.id),
+            "image_url": p.image_url
+        })
+    return results
+
+@app.get("/api/plants/featured", response_model=List[PlantResponse])
+def get_featured_plants(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    user = get_current_user(authorization, db)
+    fav_ids = set()
+    if user:
+        fav_ids = set(f.plant_id for f in db.query(UserFavorite).filter(UserFavorite.user_id == user.id).all())
+
+    plants = db.query(Plant).filter(Plant.featured == True).all()
+    if not plants:
+        plants = db.query(Plant).order_by(Plant.views_count.desc(), Plant.id.desc()).limit(8).all()
+
+    for p in plants:
+        p.is_favorite = p.id in fav_ids
+    return plants
+
+@app.get("/api/filters/options")
+def get_filter_options(db: Session = Depends(get_db)):
+    families = [f[0] for f in db.query(Plant.family).distinct().all() if f[0]]
+    tags = [t.tag_name for t in db.query(Tag).all()]
+    regions = [r[0] for r in db.query(Plant.region).distinct().all() if r[0]]
+    raw_parts = [p[0] for p in db.query(Plant.used_parts).distinct().all() if p[0]]
+    parts_set = set()
+    for rp in raw_parts:
+        for part in rp.replace(",", ";").split(";"):
+            p_clean = part.strip()
+            if p_clean:
+                parts_set.add(p_clean)
+    return {
+        "families": sorted(families),
+        "tags": sorted(tags),
+        "used_parts": sorted(list(parts_set)),
+        "regions": sorted(regions),
+    }
+
+@app.get("/api/plants/{id_or_slug}", response_model=PlantResponse)
+def get_plant_detail(id_or_slug: str, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    plant = None
+    if id_or_slug.isdigit():
+        plant = db.query(Plant).filter(Plant.id == int(id_or_slug)).first()
+    if not plant:
+        plant = db.query(Plant).filter(Plant.slug == id_or_slug).first()
+
+    if not plant:
+        raise HTTPException(status_code=404, detail="Plant not found")
+
+    plant.views_count = (plant.views_count or 0) + 1
+    db.commit()
+    db.refresh(plant)
+
+    user = get_current_user(authorization, db)
+    if user:
+        fav = db.query(UserFavorite).filter(UserFavorite.user_id == user.id, UserFavorite.plant_id == plant.id).first()
+        plant.is_favorite = bool(fav)
+    else:
+        plant.is_favorite = False
+
+    return plant
+
+@app.get("/api/plants/{id_or_slug}/related", response_model=List[PlantResponse])
+def get_related_plants(id_or_slug: str, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    plant = None
+    if id_or_slug.isdigit():
+        plant = db.query(Plant).filter(Plant.id == int(id_or_slug)).first()
+    if not plant:
+        plant = db.query(Plant).filter(Plant.slug == id_or_slug).first()
+
+    if not plant:
+        return []
+
+    tag_ids = [t.id for t in plant.tags]
+    related_query = db.query(Plant).filter(Plant.id != plant.id)
+
+    candidates = []
+    if plant.family:
+        same_family = related_query.filter(Plant.family == plant.family).all()
+        candidates.extend(same_family)
+
+    if tag_ids:
+        same_tag = db.query(Plant).join(Plant.tags).filter(Plant.id != plant.id, Tag.id.in_(tag_ids)).all()
+        candidates.extend(same_tag)
+
+    if len(candidates) < 4:
+        others = related_query.order_by(Plant.views_count.desc()).limit(6).all()
+        candidates.extend(others)
+
+    seen = set()
+    result = []
+    for c in candidates:
+        if c.id not in seen and c.id != plant.id:
+            seen.add(c.id)
+            result.append(c)
+
+    user = get_current_user(authorization, db)
+    fav_ids = set()
+    if user:
+        fav_ids = set(f.plant_id for f in db.query(UserFavorite).filter(UserFavorite.user_id == user.id).all())
+
+    for r in result[:6]:
+        r.is_favorite = r.id in fav_ids
+
+    return result[:6]
 
 @app.post("/api/plants", response_model=PlantResponse, status_code=201)
 def create_plant(data: PlantCreate, user: User = Depends(check_permission("plant:create")), db: Session = Depends(get_db)):
-    plant = Plant(**data.model_dump())
+    p_data = data.model_dump(exclude={"tags"})
+    if not p_data.get("slug") and p_data.get("common_name"):
+        base_slug = slugify(p_data["common_name"])
+        candidate = base_slug
+        idx = 1
+        while db.query(Plant).filter(Plant.slug == candidate).first():
+            candidate = f"{base_slug}-{idx}"
+            idx += 1
+        p_data["slug"] = candidate
+
+    plant = Plant(**p_data)
+
+    if data.tags:
+        tags_objs = []
+        for t_name in data.tags:
+            tag_obj = db.query(Tag).filter(Tag.tag_name == t_name).first()
+            if not tag_obj:
+                tag_obj = Tag(tag_name=t_name, category="Công dụng")
+                db.add(tag_obj)
+                db.flush()
+            tags_objs.append(tag_obj)
+        plant.tags = tags_objs
+
     db.add(plant)
     db.commit()
     db.refresh(plant)
-    return plant
-
-@app.get("/api/plants/{plant_id}", response_model=PlantResponse)
-def get_plant(plant_id: int, db: Session = Depends(get_db)):
-    plant = db.query(Plant).filter(Plant.id == plant_id).first()
-    if not plant:
-        raise HTTPException(status_code=404, detail="Plant not found")
     return plant
 
 @app.put("/api/plants/{plant_id}", response_model=PlantResponse)
@@ -596,8 +775,22 @@ def update_plant(plant_id: int, data: PlantCreate, user: User = Depends(check_pe
     plant = db.query(Plant).filter(Plant.id == plant_id).first()
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")
-    for key, value in data.model_dump(exclude_unset=True).items():
+
+    p_data = data.model_dump(exclude={"tags"}, exclude_unset=True)
+    for key, value in p_data.items():
         setattr(plant, key, value)
+
+    if data.tags is not None:
+        tags_objs = []
+        for t_name in data.tags:
+            tag_obj = db.query(Tag).filter(Tag.tag_name == t_name).first()
+            if not tag_obj:
+                tag_obj = Tag(tag_name=t_name, category="Công dụng")
+                db.add(tag_obj)
+                db.flush()
+            tags_objs.append(tag_obj)
+        plant.tags = tags_objs
+
     db.commit()
     db.refresh(plant)
     return plant
@@ -610,6 +803,249 @@ def delete_plant(plant_id: int, user: User = Depends(check_permission("plant:del
     db.delete(plant)
     db.commit()
     return None
+
+# ── Favorites ────────────────────────────────────────────────────────
+
+@app.get("/api/favorites", response_model=List[PlantResponse])
+def get_favorites(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    user = get_current_user(authorization, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    favs = db.query(UserFavorite).filter(UserFavorite.user_id == user.id).all()
+    plant_ids = [f.plant_id for f in favs]
+    plants = db.query(Plant).filter(Plant.id.in_(plant_ids)).all()
+    for p in plants:
+        p.is_favorite = True
+    return plants
+
+@app.post("/api/favorites/{plant_id}")
+def add_favorite(plant_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    user = get_current_user(authorization, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    plant = db.query(Plant).filter(Plant.id == plant_id).first()
+    if not plant:
+        raise HTTPException(status_code=404, detail="Plant not found")
+    existing = db.query(UserFavorite).filter(UserFavorite.user_id == user.id, UserFavorite.plant_id == plant_id).first()
+    if not existing:
+        db.add(UserFavorite(user_id=user.id, plant_id=plant_id))
+        db.commit()
+    return {"status": "success", "message": "Saved to favorites"}
+
+@app.delete("/api/favorites/{plant_id}")
+def remove_favorite(plant_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    user = get_current_user(authorization, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    fav = db.query(UserFavorite).filter(UserFavorite.user_id == user.id, UserFavorite.plant_id == plant_id).first()
+    if fav:
+        db.delete(fav)
+        db.commit()
+    return {"status": "success", "message": "Removed from favorites"}
+
+@app.post("/api/favorites/sync")
+def sync_favorites(req: FavoriteSyncRequest, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    user = get_current_user(authorization, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    for pid in req.plant_ids:
+        plant = db.query(Plant).filter(Plant.id == pid).first()
+        if plant:
+            existing = db.query(UserFavorite).filter(UserFavorite.user_id == user.id, UserFavorite.plant_id == pid).first()
+            if not existing:
+                db.add(UserFavorite(user_id=user.id, plant_id=pid))
+    db.commit()
+    return {"status": "success", "synced": len(req.plant_ids)}
+
+# ── Articles / Knowledge Base ───────────────────────────────────────
+
+@app.get("/api/articles", response_model=ArticleListResponse)
+def list_articles(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
+    category: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Article)
+    if category:
+        query = query.filter(Article.category == category)
+    total = query.count()
+    items = query.order_by(Article.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return ArticleListResponse(items=items, total=total, page=page, page_size=page_size)
+
+@app.get("/api/articles/{id_or_slug}", response_model=ArticleResponse)
+def get_article(id_or_slug: str, db: Session = Depends(get_db)):
+    article = None
+    if id_or_slug.isdigit():
+        article = db.query(Article).filter(Article.id == int(id_or_slug)).first()
+    if not article:
+        article = db.query(Article).filter(Article.slug == id_or_slug).first()
+
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    article.views_count = (article.views_count or 0) + 1
+    db.commit()
+    db.refresh(article)
+    return article
+
+@app.post("/api/articles", response_model=ArticleResponse, status_code=201)
+def create_article(data: ArticleCreate, admin: User = Depends(check_permission("plant:create")), db: Session = Depends(get_db)):
+    base_slug = slugify(data.title)
+    candidate = base_slug
+    idx = 1
+    while db.query(Article).filter(Article.slug == candidate).first():
+        candidate = f"{base_slug}-{idx}"
+        idx += 1
+
+    art = Article(
+        title=data.title,
+        slug=candidate,
+        summary=data.summary,
+        content=data.content,
+        image_url=data.image_url,
+        category=data.category or "Dược liệu",
+        author=data.author or admin.full_name or admin.username
+    )
+    db.add(art)
+    db.commit()
+    db.refresh(art)
+    return art
+
+@app.put("/api/articles/{article_id}", response_model=ArticleResponse)
+def update_article(article_id: int, data: ArticleCreate, admin: User = Depends(check_permission("plant:update")), db: Session = Depends(get_db)):
+    art = db.query(Article).filter(Article.id == article_id).first()
+    if not art:
+        raise HTTPException(status_code=404, detail="Article not found")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(art, key, value)
+    db.commit()
+    db.refresh(art)
+    return art
+
+@app.delete("/api/articles/{article_id}", status_code=204)
+def delete_article(article_id: int, admin: User = Depends(check_permission("plant:delete")), db: Session = Depends(get_db)):
+    art = db.query(Article).filter(Article.id == article_id).first()
+    if not art:
+        raise HTTPException(status_code=404, detail="Article not found")
+    db.delete(art)
+    db.commit()
+    return None
+
+# ── AI Plant Recognition ───────────────────────────────────────────
+
+@app.post("/api/ai/recognize")
+async def recognize_plant_image(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Vui lòng tải lên một tệp hình ảnh")
+    
+    contents = await file.read()
+    import base64
+    b64_image = base64.b64encode(contents).decode("utf-8")
+    mime_type = file.content_type or "image/jpeg"
+
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Chưa cấu hình GOOGLE_API_KEY cho AI nhận diện")
+
+    try:
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=api_key)
+
+        prompt = (
+            "Bạn là chuyên gia nhận diện thực vật dược liệu Việt Nam. "
+            "Hãy phân tích hình ảnh cây thuốc này và trả về kết quả JSON theo định dạng chính xác:\n"
+            "{\n"
+            '  "identified": true,\n'
+            '  "primary_candidate": {\n'
+            '     "vietnamese_name": "Tên tiếng Việt nghi vấn cao nhất",\n'
+            '     "scientific_name": "Tên khoa học nghi vấn",\n'
+            '     "confidence_percent": 85,\n'
+            '     "observed_features": "Đặc điểm hình thái nhận biết qua ảnh (lá, hoa, thân...)"\n'
+            '  },\n'
+            '  "other_candidates": [\n'
+            '     {"vietnamese_name": "Cây khả nghi 2", "scientific_name": "Tên khoa học", "confidence_percent": 60}\n'
+            '  ],\n'
+            '  "disclaimer": "LƯU Ý QUAN TRỌNG: Kết quả nhận diện bằng AI chỉ mang tính chất gợi ý tham khảo. Tuyệt đối không tự ý thu hái hoặc sử dụng cây dại theo nhận diện AI khi chưa được chuyên gia dược liệu hoặc bác sĩ Y học cổ truyền xác minh trực tiếp!"\n'
+            "}\n"
+            "Chỉ trả về JSON thuần túy, không kèm Markdown wrapper code block."
+        )
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Part.from_bytes(data=contents, mime_type=mime_type),
+                prompt
+            ]
+        )
+        raw_text = response.text.strip()
+        if raw_text.startswith("```"):
+            raw_text = re.sub(r"^```[a-zA-Z]*\n?", "", raw_text)
+            raw_text = re.sub(r"\n?```$", "", raw_text).strip()
+
+        import json
+        result_json = json.loads(raw_text)
+        
+        if "primary_candidate" in result_json and result_json["primary_candidate"].get("vietnamese_name"):
+            vname = result_json["primary_candidate"]["vietnamese_name"]
+            matched_plant = db.query(Plant).filter(Plant.common_name.ilike(f"%{vname}%")).first()
+            if matched_plant:
+                result_json["primary_candidate"]["db_plant_id"] = matched_plant.id
+                result_json["primary_candidate"]["db_plant_slug"] = matched_plant.slug
+
+        return result_json
+    except Exception as e:
+        return {
+            "identified": False,
+            "error": f"Không thể xử lý hình ảnh qua AI: {str(e)}",
+            "disclaimer": "Kết quả AI chỉ mang tính chất tham khảo. Vui lòng kiểm tra lại hình ảnh hoặc thử lại sau."
+        }
+
+# ── Analytics & SEO ────────────────────────────────────────────────
+
+@app.get("/api/analytics/search")
+def get_search_analytics(db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    top_queries = (
+        db.query(SearchLog.query, func.count(SearchLog.id).label("count"))
+        .group_by(SearchLog.query)
+        .order_by(func.count(SearchLog.id).desc())
+        .limit(10)
+        .all()
+    )
+    return [{"query": q, "count": c} for q, c in top_queries]
+
+@app.get("/sitemap.xml")
+def get_sitemap(db: Session = Depends(get_db)):
+    from fastapi.responses import Response
+    plants = db.query(Plant).all()
+    articles = db.query(Article).all()
+    
+    xml_lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+        '  <url><loc>https://thucvatviet.vn/</loc><priority>1.0</priority></url>',
+        '  <url><loc>https://thucvatviet.vn/plants</loc><priority>0.9</priority></url>',
+        '  <url><loc>https://thucvatviet.vn/articles</loc><priority>0.8</priority></url>',
+        '  <url><loc>https://thucvatviet.vn/ai-recognition</loc><priority>0.7</priority></url>',
+    ]
+    for p in plants:
+        slug = p.slug or str(p.id)
+        xml_lines.append(f'  <url><loc>https://thucvatviet.vn/plants/{slug}</loc><priority>0.8</priority></url>')
+    for a in articles:
+        xml_lines.append(f'  <url><loc>https://thucvatviet.vn/articles/{a.slug}</loc><priority>0.7</priority></url>')
+    xml_lines.append('</urlset>')
+    return Response(content="\n".join(xml_lines), media_type="application/xml")
+
+@app.get("/robots.txt")
+def get_robots():
+    from fastapi.responses import Response
+    content = "User-agent: *\nAllow: /\nSitemap: https://thucvatviet.vn/sitemap.xml\n"
+    return Response(content=content, media_type="text/plain")
 
 # ── Tags ─────────────────────────────────────────────────────────────
 

@@ -1,343 +1,414 @@
-import { useEffect, useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { apiFetch } from "../api";
 import {
-  ArrowRight, TreeDeciduous, Flower2,
-  Sprout, Search, BookOpen, Shield, Droplets, Sun, Tag as TagIcon, MessageCircle,
+  Search,
+  Sparkles,
+  Leaf,
+  ChevronRight,
+  Camera,
+  ArrowRight,
+  Flame,
+  Activity,
+  HeartPulse,
+  Brain,
+  Feather,
+  Zap,
 } from "lucide-react";
+import PlantCard from "../components/PlantCard";
+import MedicalDisclaimer from "../components/MedicalDisclaimer";
+import SEO from "../components/SEO";
+import type { Plant, Article, AutocompletePlant } from "../api";
+import { apiFetch } from "../api";
 
-const FS = "'Playfair Display', Georgia, serif";
-
-interface Tag {
-  id: number;
-  category: string;
-  tag_name: string;
-}
-
-interface Plant {
-  id: number;
-  common_name: string;
-  scientific_name: string | null;
-  family: string | null;
-  region: string | null;
-  image_url: string | null;
-  description: string | null;
-  tags: Tag[];
-}
-
-const CATEGORY_ICON_MAP: Record<string, string> = {
-  "Thanh nhiệt, giải độc": "🔥",
-  "Bổ khí, dưỡng huyết": "🩸",
-  "Bổ can thận, mạnh gân cốt": "💪",
-  "Hóa đàm, chỉ khái": "🍃",
-  "Khu phong, trừ thấp": "💨",
-  "Hoạt huyết, tiêu thũng": "💧",
-};
-
-const CATEGORY_COLOR_MAP: Record<string, { color: string; border: string }> = {
-  "Thanh nhiệt, giải độc": { color: "#fff1e6", border: "#f5b56b" },
-  "Bổ khí, dưỡng huyết": { color: "#fdeeee", border: "#e28a8a" },
-  "Bổ can thận, mạnh gân cốt": { color: "#eaf4e3", border: "#a8d48a" },
-  "Hóa đàm, chỉ khái": { color: "#f0faf0", border: "#90d890" },
-  "Khu phong, trừ thấp": { color: "#e8f4ff", border: "#8fbbe8" },
-  "Hoạt huyết, tiêu thũng": { color: "#e8f8ff", border: "#80cce8" },
-};
-
-const FEATURES = [
-  { icon: BookOpen, title: "Bách khoa cây thuốc", desc: "Cơ sở dữ liệu các loài cây thuốc Việt Nam với mô tả chi tiết, hình ảnh và phân loại khoa học.", color: "#2d5a27" },
-  { icon: MessageCircle, title: "Chat AI chuyên gia", desc: "Hỏi đáp với AI tra cứu kho tài liệu cây thuốc đã được huấn luyện.", color: "#7ab648" },
-  { icon: Shield, title: "Nhận diện cây độc", desc: "Cảnh báo các loài cây độc hại, nguy hiểm giúp bảo vệ gia đình và vật nuôi.", color: "#c0392b" },
-  { icon: Droplets, title: "Hướng dẫn sử dụng", desc: "Công dụng, bài thuốc dân gian và cách sử dụng cho từng loại cây thuốc.", color: "#2980b9" },
-  { icon: Sun, title: "Phân bố vùng miền", desc: "Thông tin cây thuốc theo khu vực, thổ nhưỡng và khí hậu Việt Nam.", color: "#e67e22" },
-  { icon: Search, title: "Tìm kiếm thông minh", desc: "Tìm kiếm theo tên thường gọi, tên khoa học hoặc bộ phận sử dụng.", color: "#9b59b6" },
+const CATEGORIES = [
+  {
+    name: "Thanh nhiệt - Giải độc",
+    tag: "Thanh nhiệt",
+    icon: Flame,
+    color: "from-amber-500 to-orange-600",
+    bg: "bg-amber-50 text-amber-700 border-amber-200",
+    desc: "Giảm mụn nhọt, rôm sảy, hỗ trợ chức năng gan thận.",
+  },
+  {
+    name: "Trị ho - Long đờm",
+    tag: "Trị ho",
+    icon: Feather,
+    color: "from-emerald-500 to-teal-600",
+    bg: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    desc: "Bổ phế, dịu họng, chữa ho gió, ho khan dai dẳng.",
+  },
+  {
+    name: "Bổ khí huyết - An thần",
+    tag: "Bổ khí huyết",
+    icon: HeartPulse,
+    color: "from-rose-500 to-red-600",
+    bg: "bg-rose-50 text-rose-700 border-rose-200",
+    desc: "Tăng cường thể lực, bồi bổ suy nhược, giúp ngủ ngon.",
+  },
+  {
+    name: "Xương khớp - Phong thấp",
+    tag: "Xương khớp",
+    icon: Activity,
+    color: "from-indigo-500 to-blue-600",
+    bg: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    desc: "Trị đau lưng mỏi gối, tê thấp, cứng khớp mùa lạnh.",
+  },
+  {
+    name: "Tiêu hóa - Dạ dày",
+    tag: "Tiêu hóa",
+    icon: Zap,
+    color: "from-teal-500 to-cyan-600",
+    bg: "bg-teal-50 text-teal-700 border-teal-200",
+    desc: "Giảm đầy hơi, ợ chua, viêm loét dạ dày tá tràng.",
+  },
+  {
+    name: "An thần - Giảm Stress",
+    tag: "An thần",
+    icon: Brain,
+    color: "from-purple-500 to-indigo-600",
+    bg: "bg-purple-50 text-purple-700 border-purple-200",
+    desc: "Dịu thần kinh, chữa mất ngủ, hồi hộp đánh trống ngực.",
+  },
 ];
 
 export default function Home() {
-  const [plants, setPlants] = useState<Plant[]>([]);
-  const [total, setTotal] = useState(0);
-  const [tags, setTags] = useState<Tag[]>([]);
   const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [suggestions, setSuggestions] = useState<AutocompletePlant[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [featuredPlants, setFeaturedPlants] = useState<Plant[]>([]);
+  const [latestArticles, setLatestArticles] = useState<Article[]>([]);
+  const [loadingPlants, setLoadingPlants] = useState(true);
 
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Debounced Autocomplete (300ms)
   useEffect(() => {
-    apiFetch<{ items: Plant[]; total: number }>("/api/plants?page_size=6")
-      .then((data) => {
-        setPlants(data.items);
-        setTotal(data.total);
+    if (!searchTerm.trim()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      apiFetch<AutocompletePlant[]>(`/api/plants/autocomplete?q=${encodeURIComponent(searchTerm.trim())}`)
+        .then((res) => {
+          setSuggestions(res);
+          setShowSuggestions(res.length > 0);
+        })
+        .catch(() => setSuggestions([]));
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Close search suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Fetch Featured Plants & Articles
+  useEffect(() => {
+    setLoadingPlants(true);
+    Promise.all([
+      apiFetch<Plant[]>("/api/plants/featured"),
+      apiFetch<{ items: Article[] }>("/api/articles?page=1&page_size=3"),
+    ])
+      .then(([plants, articlesRes]) => {
+        setFeaturedPlants(plants);
+        setLatestArticles(articlesRes.items || []);
       })
-      .catch(() => {});
+      .catch((err) => console.error("Error loading home data", err))
+      .finally(() => setLoadingPlants(false));
   }, []);
 
-  useEffect(() => {
-    apiFetch<Tag[]>("/api/tags")
-      .then(setTags)
-      .catch(() => {});
-  }, []);
-
-  const categories = tags.map((tag) => [tag.tag_name, [tag.tag_name]] as const);
-
-  const stats = [
-    { value: total > 0 ? total.toLocaleString("vi-VN") + "+" : "—", label: "Loài cây thuốc", icon: TreeDeciduous, color: "#2d5a27" },
-    { value: tags.length > 0 ? String(tags.length) : "—", label: "Nhóm công dụng", icon: TagIcon, color: "#7ab648" },
-    { value: "1.000+", label: "Bài thuốc dân gian", icon: Flower2, color: "#c0392b" },
-    { value: "24/7", label: "Hỗ trợ AI", icon: Sprout, color: "#8b6914" },
-  ];
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      setShowSuggestions(false);
+      navigate(`/plants?search=${encodeURIComponent(searchTerm.trim())}`);
+    }
+  };
 
   return (
-    <div className="overflow-hidden" style={{ background: "#f5f0e8" }}>
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: "url(https://images.unsplash.com/photo-1476231682828-37e571bc172f?w=1600&h=700&fit=crop&auto=format)",
-            backgroundSize: "cover",
-            backgroundPosition: "center 40%",
-          }}
-        />
-        <div
-          className="absolute inset-0"
-          style={{ background: "linear-gradient(135deg, rgba(28,46,20,0.88) 0%, rgba(45,90,39,0.72) 50%, rgba(122,182,72,0.4) 100%)" }}
-        />
-        <div className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5 C30 5 50 20 50 35 C50 47 41 55 30 55 C19 55 10 47 10 35 C10 20 30 5 30 5Z' fill='%23ffffff' opacity='0.3'/%3E%3C/svg%3E")`,
-            backgroundSize: "60px 60px",
-          }}
-        />
+    <div className="space-y-12 md:space-y-20 pb-16">
+      <SEO
+        title="Trang chủ - Cơ sở dữ liệu Thực Vật Dược Liệu Việt Nam"
+        description="Tra cứu cây thuốc Nam, nhận diện thực vật bằng AI, bài viết dược liệu uy tín chuẩn hóa."
+      />
 
-        <div className="relative px-6 py-28 max-w-[1280px] mx-auto">
-          <div className="max-w-[620px]">
-            <div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm mb-6"
-              style={{ background: "rgba(122,182,72,0.25)", border: "1px solid rgba(122,182,72,0.5)", color: "#c8f0a0" }}
-            >
-              <Sprout className="w-4 h-4" />
-              <span style={{ fontWeight: 600 }}>Bách khoa cây thuốc Việt Nam</span>
-            </div>
-            <h1
-              style={{
-                fontFamily: FS,
-                fontSize: "clamp(36px, 5vw, 58px)",
-                color: "#fff",
-                fontWeight: 700,
-                lineHeight: 1.15,
-                marginBottom: 20,
-              }}
-            >
-              Khám phá kho tàng{' '}
-              <span style={{ color: "#a8e06a", fontStyle: "italic" }}>cây thuốc</span>{' '}
-              Việt Nam
-            </h1>
-            <p style={{ color: "rgba(255,255,255,0.82)", fontSize: 17, lineHeight: 1.7, marginBottom: 32 }}>
-              {total > 0
-                ? `Tra cứu ${total.toLocaleString("vi-VN")}+ loài cây thuốc, học cách sử dụng, nhận diện cây độc và trò chuyện với AI.`
-                : "Tra cứu các loài cây thuốc Việt Nam, học cách sử dụng, nhận diện cây độc và trò chuyện với AI."}
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                to="/plants"
-                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm no-underline transition-all"
-                style={{ background: "#7ab648", color: "#fff", fontWeight: 700, fontSize: 15 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#5e9a32")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "#7ab648")}
+      {/* Hero Section */}
+      <section className="relative bg-gradient-to-b from-emerald-950 via-emerald-900 to-teal-950 text-white overflow-hidden py-16 md:py-24 px-4 sm:px-6 lg:px-8">
+        {/* Background Decorative Accents */}
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#34d399_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
+        <div className="absolute top-1/4 -left-20 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-10 -right-20 w-96 h-96 bg-teal-400/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="max-w-4xl mx-auto text-center relative z-10 space-y-6">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-800/60 border border-emerald-500/30 text-emerald-300 text-xs font-semibold backdrop-blur-md animate-in fade-in slide-in-from-top-3">
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            <span>Kho tàng 10.000+ Cây thuốc & Thảo dược Việt Nam</span>
+          </div>
+
+          <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-tight text-white">
+            Tra Cứu Dược Liệu Việt Nam <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-emerald-400 font-serif italic">
+              Chính Xác & Chuẩn Hóa
+            </span>
+          </h1>
+
+          <p className="text-base sm:text-lg text-emerald-100/80 max-w-2xl mx-auto font-normal leading-relaxed">
+            Khám phá công dụng, tính vị, nhận diện đặc điểm sinh học và ứng dụng y học cổ truyền Việt Nam ngay trong tầm tay.
+          </p>
+
+          {/* Prominent Search Bar with Autocomplete */}
+          <div ref={searchContainerRef} className="relative max-w-2xl mx-auto pt-2">
+            <form onSubmit={handleSearchSubmit} className="relative flex items-center">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                placeholder="Nhập tên tiếng Việt (vd: Đinh lăng, Ngải cứu), tên khoa học, công dụng..."
+                className="w-full pl-12 pr-28 py-4 rounded-2xl bg-white text-slate-800 placeholder-slate-400 text-sm md:text-base font-medium shadow-2xl focus:outline-none focus:ring-4 focus:ring-emerald-400/40 border-0"
+              />
+              <Search className="absolute left-4 w-5 h-5 text-emerald-700 pointer-events-none" />
+              <button
+                type="submit"
+                className="absolute right-2 px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs md:text-sm rounded-xl shadow-md transition-all hover:scale-105"
               >
-                <TreeDeciduous className="w-4 h-4" />
-                Tra cứu cây ngay
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
+                Tra cứu
+              </button>
+            </form>
 
-      {/* Stats bar */}
-      <section style={{ background: "#2d5a27" }}>
-        <div className="px-6 py-5 max-w-[1280px] mx-auto grid grid-cols-2 md:grid-cols-4 gap-4">
-          {stats.map(({ value, label, icon: Icon }) => (
-            <div key={label} className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.12)" }}>
-                <Icon className="w-5 h-5 text-white" style={{ color: "rgba(255,255,255,0.9)" }} />
+            {/* Autocomplete Suggestions Dropdown */}
+            {showSuggestions && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 text-left animate-in fade-in slide-in-from-top-2">
+                <div className="p-2 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider px-4">
+                  Gợi ý cây thuốc phù hợp ({suggestions.length})
+                </div>
+                <div className="max-h-80 overflow-y-auto divide-y divide-slate-50">
+                  {suggestions.map((item) => (
+                    <Link
+                      key={item.id}
+                      to={`/plants/${item.slug}`}
+                      onClick={() => setShowSuggestions(false)}
+                      className="flex items-center gap-3.5 px-4 py-3 hover:bg-emerald-50/80 transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden shrink-0">
+                        {item.image_url ? (
+                          <img src={item.image_url} alt={item.common_name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Leaf className="w-5 h-5 text-emerald-600 m-auto mt-2.5" />
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800">{item.common_name}</h4>
+                        {item.scientific_name && (
+                          <p className="text-xs text-slate-400 italic font-serif">{item.scientific_name}</p>
+                        )}
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-300 ml-auto" />
+                    </Link>
+                  ))}
+                </div>
               </div>
-              <div>
-                <p style={{ color: "#a8e06a", fontWeight: 800, fontSize: 20, lineHeight: 1 }}>{value}</p>
-                <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: 500 }}>{label}</p>
-              </div>
-            </div>
-          ))}
+            )}
+          </div>
+
+          {/* Quick Keyword Chips */}
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-2 text-xs text-emerald-200/80">
+            <span className="font-semibold text-emerald-400">Từ khóa hot:</span>
+            {["Đinh lăng", "Ba kích", "Ngải cứu", "Hà thủ ô", "Actisô"].map((kw) => (
+              <button
+                key={kw}
+                onClick={() => {
+                  setSearchTerm(kw);
+                  navigate(`/plants?search=${encodeURIComponent(kw)}`);
+                }}
+                className="px-3 py-1 rounded-full bg-emerald-900/60 hover:bg-emerald-800/80 border border-emerald-700/50 transition-colors"
+              >
+                {kw}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Categories */}
-      <section className="px-6 py-14 max-w-[1280px] mx-auto">
-        <div className="text-center mb-10">
-          <p className="text-sm uppercase tracking-widest mb-2" style={{ color: "#7ab648", fontWeight: 700 }}>Danh mục</p>
-          <h2 style={{ fontFamily: FS, fontSize: "clamp(26px, 4vw, 38px)", color: "#1c2e14", fontWeight: 700 }}>
-            Khám phá theo công dụng
-          </h2>
-        </div>
-        {categories.length === 0 ? (
-          <div className="text-center py-10">
-            <p style={{ fontSize: 36 }}>🌿</p>
-            <p style={{ color: "#6b7c5e", fontSize: 15, marginTop: 8 }}>Đang tải danh mục...</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {categories.map(([category, names]) => {
-              const meta = CATEGORY_COLOR_MAP[category] ?? { color: "#f0faf0", border: "#90d890" };
-              const icon = CATEGORY_ICON_MAP[category] ?? "🌿";
-              return (
-                <Link
-                  key={category}
-                  to={`/plants?tag=${encodeURIComponent(names[0])}`}
-                  className="flex flex-col items-center gap-2 p-5 rounded-2xl no-underline transition-all group"
-                  style={{ background: meta.color, border: `1.5px solid ${meta.border}` }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.1)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
-                >
-                  <span style={{ fontSize: 32 }}>{icon}</span>
-                  <span style={{ color: "#1c2e14", fontWeight: 700, fontSize: 13, textAlign: "center" }}>{category}</span>
-                  <span style={{ color: "#7ab648", fontSize: 11, fontWeight: 600 }}>Cây thuốc</span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </section>
+      {/* Main Container */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
+        {/* Health Disclaimer Banner */}
+        <MedicalDisclaimer />
 
-      {/* Featured plants */}
-      <section style={{ background: "#fff" }} className="px-6 py-14">
-        <div className="max-w-[1280px] mx-auto">
-          <div className="flex items-end justify-between mb-10">
+        {/* Section 1: Explore by Usage */}
+        <section className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-2">
             <div>
-              <p className="text-sm uppercase tracking-widest mb-2" style={{ color: "#7ab648", fontWeight: 700 }}>Nổi bật</p>
-              <h2 style={{ fontFamily: FS, fontSize: "clamp(24px, 3.5vw, 36px)", color: "#1c2e14", fontWeight: 700 }}>
-                Cây thuốc mới nhất
+              <span className="text-emerald-700 text-xs font-bold uppercase tracking-wider">Danh mục dược tính</span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                Khám Phá Theo Công Dụng Điều Trị
               </h2>
             </div>
             <Link
               to="/plants"
-              className="hidden md:flex items-center gap-1.5 text-sm no-underline transition-colors"
-              style={{ color: "#2d5a27", fontWeight: 600 }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#7ab648")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#2d5a27")}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition-colors"
             >
-              Xem tất cả <ArrowRight className="w-4 h-4" />
+              <span>Xem tất cả bộ lọc</span>
+              <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
 
-          {plants.length === 0 ? (
-            <div className="text-center py-16">
-              <p style={{ fontSize: 40 }}>🌿</p>
-              <p style={{ color: "#6b7c5e", fontSize: 16, marginTop: 8 }}>Đang tải cây thuốc...</p>
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {plants.map((plant) => (
-                <div
-                  key={plant.id}
-                  onClick={() => navigate(`/plants/${plant.id}`)}
-                  className="rounded-2xl overflow-hidden cursor-pointer transition-all"
-                  style={{ border: "1.5px solid #e4ddd0", background: "#fff" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow = "0 12px 40px rgba(45,90,39,0.15)";
-                    e.currentTarget.style.borderColor = "#7ab648";
-                    e.currentTarget.style.transform = "translateY(-4px)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow = "none";
-                    e.currentTarget.style.borderColor = "#e4ddd0";
-                    e.currentTarget.style.transform = "none";
-                  }}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {CATEGORIES.map((cat) => {
+              const Icon = cat.icon;
+              return (
+                <Link
+                  key={cat.tag}
+                  to={`/plants?tag=${encodeURIComponent(cat.tag)}`}
+                  className="group relative bg-white border border-slate-100 rounded-2xl p-5 shadow-xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1 flex items-start gap-4"
                 >
-                  <div className="relative h-52 overflow-hidden" style={{ background: "#e4ddd0" }}>
-                    {plant.image_url ? (
-                      <img src={plant.image_url} alt={plant.common_name} className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #e8f5e9, #c8e6c9)", fontSize: "3rem" }}>🌿</div>
-                    )}
-                    {plant.tags.length > 0 && (
-                      <div className="absolute top-3 left-3">
-                        <span className="px-2.5 py-1 rounded-full text-xs text-white" style={{ background: "#2d5a27", fontWeight: 700 }}>
-                          {plant.tags[0].tag_name}
-                        </span>
-                      </div>
-                    )}
+                  <div className={`p-3 rounded-2xl shrink-0 ${cat.bg} border transition-transform group-hover:scale-110`}>
+                    <Icon className="w-6 h-6" />
                   </div>
-                  <div className="p-5">
-                    <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "#7ab648", fontWeight: 600 }}>
-                      {plant.family || "Thực vật"}
-                    </p>
-                    <h3 style={{ fontFamily: FS, fontSize: 20, fontWeight: 700, color: "#1c2e14", marginBottom: 4 }}>{plant.common_name}</h3>
-                    {plant.scientific_name && (
-                      <p className="text-xs italic mb-3" style={{ color: "#7ab648" }}>{plant.scientific_name}</p>
-                    )}
-                    {plant.description && (
-                      <p className="text-sm leading-relaxed" style={{ color: "#5a6e52", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                        {plant.description}
-                      </p>
-                    )}
-                    {plant.region && (
-                      <div className="mt-3 flex items-center gap-1.5 text-xs" style={{ color: "#3d5c35", fontWeight: 600 }}>
-                        <Sprout className="w-3.5 h-3.5" style={{ color: "#7ab648" }} />
-                        {plant.region}
-                      </div>
-                    )}
-                    <div className="mt-4 flex items-center gap-2">
-                      <div className="flex-1 h-px" style={{ background: "#eaf0e4" }} />
-                      <span className="text-xs" style={{ color: "#7ab648", fontWeight: 600 }}>Xem chi tiết →</span>
-                    </div>
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-slate-800 text-base group-hover:text-emerald-700 transition-colors">
+                      {cat.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">{cat.desc}</p>
                   </div>
-                </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Section 2: Featured Medicinal Plants */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-emerald-700 text-xs font-bold uppercase tracking-wider">Cây thuốc tiêu biểu</span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                Cây Thuốc Nổi Bật / Phổ Biến
+              </h2>
+            </div>
+            <Link
+              to="/plants"
+              className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-800"
+            >
+              <span>Xem thêm</span>
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          {loadingPlants ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-72 bg-slate-100 animate-pulse rounded-2xl" />
               ))}
             </div>
-          )}
-        </div>
-      </section>
-
-      {/* Features grid */}
-      <section className="px-6 py-14 max-w-[1280px] mx-auto">
-        <div className="text-center mb-10">
-          <p className="text-sm uppercase tracking-widest mb-2" style={{ color: "#7ab648", fontWeight: 700 }}>Tính năng</p>
-          <h2 style={{ fontFamily: FS, fontSize: "clamp(24px, 3.5vw, 36px)", color: "#1c2e14", fontWeight: 700 }}>
-            Mọi thứ bạn cần về cây thuốc
-          </h2>
-        </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {FEATURES.map(({ icon: Icon, title, desc, color }) => (
-            <div
-              key={title}
-              className="p-6 rounded-2xl transition-all cursor-default"
-              style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = color; e.currentTarget.style.boxShadow = `0 8px 24px ${color}22`; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e4ddd0"; e.currentTarget.style.boxShadow = "none"; }}
-            >
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4" style={{ background: `${color}18` }}>
-                <Icon className="w-5 h-5" style={{ color }} />
-              </div>
-              <h3 style={{ fontFamily: FS, fontSize: 18, fontWeight: 700, color: "#1c2e14", marginBottom: 8 }}>{title}</h3>
-              <p className="text-sm leading-relaxed" style={{ color: "#6b7c5e" }}>{desc}</p>
+          ) : featuredPlants.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {featuredPlants.slice(0, 8).map((plant) => (
+                <PlantCard key={plant.id} plant={plant} />
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
+          ) : (
+            <div className="text-center py-12 bg-white rounded-2xl border border-slate-100">
+              <Leaf className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <p className="text-sm text-slate-500">Đang cập nhật danh sách cây thuốc nổi bật...</p>
+            </div>
+          )}
+        </section>
 
-      {/* CTA Banner */}
-      <section className="px-6 pb-16 max-w-[1280px] mx-auto">
-        <div
-          className="relative rounded-3xl overflow-hidden p-12 text-center"
-          style={{ background: "linear-gradient(135deg, #1c2e14 0%, #2d5a27 50%, #3d7a30 100%)" }}
-        >
-          <div className="relative">
-            <p className="text-sm uppercase tracking-widest mb-3" style={{ color: "#a8e06a", fontWeight: 700 }}>🌿 Chat AI miễn phí</p>
-            <h2 style={{ fontFamily: FS, fontSize: "clamp(24px, 3.5vw, 38px)", color: "#fff", fontWeight: 700, marginBottom: 12 }}>
-              Có thắc mắc về cây thuốc? Hỏi ngay AI!
-            </h2>
-            <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 16, marginBottom: 0 }}>
-              AI tra cứu kho tài liệu cây thuốc Việt Nam. Trả lời 24/7.
+        {/* Section 3: AI Feature Callout Banner */}
+        <section className="relative bg-gradient-to-r from-teal-900 to-emerald-950 rounded-3xl p-8 md:p-12 text-white overflow-hidden shadow-xl">
+          <div className="relative z-10 max-w-2xl space-y-4">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold">
+              <Camera className="w-4 h-4" />
+              <span>Độc quyền AI Công nghệ cao</span>
+            </span>
+            <h3 className="text-2xl md:text-3xl font-extrabold leading-tight">
+              Nhận Diện Cây Thuốc Bằng Hình Ảnh AI
+            </h3>
+            <p className="text-xs md:text-sm text-teal-100/80 leading-relaxed">
+              Bạn chụp được ảnh cây lạ trong vườn hoặc trên đồi núi? Tải ảnh lên để AI phân tích hoa, lá, thân và đưa ra gợi ý loài cây dược liệu phù hợp cùng các cảnh báo an toàn.
             </p>
+            <div className="pt-2">
+              <Link
+                to="/ai-recognition"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-teal-400 text-teal-950 font-bold text-xs md:text-sm rounded-xl shadow-lg hover:bg-teal-300 transition-all hover:scale-105"
+              >
+                <Camera className="w-4 h-4" />
+                <span>Thử ngay AI Nhận diện</span>
+              </Link>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        {/* Section 4: Knowledge / Articles Section */}
+        {latestArticles.length > 0 && (
+          <section className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-emerald-700 text-xs font-bold uppercase tracking-wider">Cẩm nang sức khỏe</span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                  Kiến Thức Dược Liệu & Y Học Cổ Truyền
+                </h2>
+              </div>
+              <Link
+                to="/articles"
+                className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-800"
+              >
+                <span>Tất cả bài viết</span>
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {latestArticles.map((article) => (
+                <Link
+                  key={article.id}
+                  to={`/articles/${article.slug}`}
+                  className="group bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col"
+                >
+                  <div className="aspect-16/9 bg-slate-100 overflow-hidden">
+                    <img
+                      src={article.image_url || "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=600&q=80"}
+                      alt={article.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  </div>
+                  <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
+                    <div className="space-y-2">
+                      <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                        {article.category}
+                      </span>
+                      <h3 className="font-bold text-slate-800 text-base group-hover:text-emerald-700 line-clamp-2">
+                        {article.title}
+                      </h3>
+                      {article.summary && (
+                        <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                          {article.summary}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-400 pt-2 border-t border-slate-100 flex items-center justify-between">
+                      <span>{article.author}</span>
+                      <span>{new Date(article.created_at).toLocaleDateString("vi-VN")}</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   );
 }

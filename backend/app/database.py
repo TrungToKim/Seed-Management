@@ -99,6 +99,32 @@ PACKAGE_MIGRATION_SQL = [
 ]
 
 
+import re
+import unicodedata
+
+def slugify(text: str) -> str:
+    if not text:
+        return ""
+    text = unicodedata.normalize('NFD', text)
+    text = ''.join(c for c in text if unicodedata.category(c) != 'MN')
+    text = text.replace('đ', 'd').replace('Đ', 'D')
+    text = re.sub(r'[^\w\s-]', '', text.lower())
+    return re.sub(r'[-\s]+', '-', text).strip('-')
+
+PLANT_MIGRATION_SQL = [
+    'ALTER TABLE plants ADD COLUMN IF NOT EXISTS slug VARCHAR(255)',
+    'ALTER TABLE plants ADD COLUMN IF NOT EXISTS other_names TEXT',
+    'ALTER TABLE plants ADD COLUMN IF NOT EXISTS used_parts TEXT',
+    'ALTER TABLE plants ADD COLUMN IF NOT EXISTS chemical_components TEXT',
+    'ALTER TABLE plants ADD COLUMN IF NOT EXISTS how_to_use TEXT',
+    'ALTER TABLE plants ADD COLUMN IF NOT EXISTS precautions TEXT',
+    'ALTER TABLE plants ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT FALSE',
+    'ALTER TABLE plants ADD COLUMN IF NOT EXISTS views_count INTEGER DEFAULT 0',
+    'ALTER TABLE plants ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now()',
+    'ALTER TABLE plants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now()',
+    'CREATE UNIQUE INDEX IF NOT EXISTS ix_plants_slug ON plants(slug)',
+]
+
 def migrate_db():
     eng = get_engine()
     if eng is None:
@@ -107,9 +133,9 @@ def migrate_db():
         with eng.begin() as conn:
             for statement in USER_MIGRATION_SQL:
                 conn.execute(text(statement))
-        print("Database migrations applied.")
+        print("User database migrations applied.")
     except Exception as e:
-        print(f"Warning: Could not apply migrations: {e}")
+        print(f"Warning: Could not apply user migrations: {e}")
     try:
         with eng.begin() as conn:
             for statement in PACKAGE_MIGRATION_SQL:
@@ -117,6 +143,59 @@ def migrate_db():
         print("Package migrations applied.")
     except Exception as e:
         print(f"Warning: Could not apply package migrations: {e}")
+    try:
+        with eng.begin() as conn:
+            for statement in PLANT_MIGRATION_SQL:
+                conn.execute(text(statement))
+        print("Plant migrations applied.")
+    except Exception as e:
+        print(f"Warning: Could not apply plant migrations: {e}")
+
+def populate_plant_slugs_and_seeds():
+    eng = get_engine()
+    if eng is None or SessionLocal is None:
+        return
+    db = SessionLocal()
+    try:
+        plants = db.query(Plant).all()
+        for p in plants:
+            if not p.slug and p.common_name:
+                base_slug = slugify(p.common_name)
+                candidate = base_slug
+                idx = 1
+                while db.query(Plant).filter(Plant.slug == candidate, Plant.id != p.id).first():
+                    candidate = f"{base_slug}-{idx}"
+                    idx += 1
+                p.slug = candidate
+        db.commit()
+
+        if db.query(Article).count() == 0:
+            sample_articles = [
+                Article(
+                    title="Hướng dẫn sử dụng cây thuốc Nam an toàn và hiệu quả",
+                    slug="huong-dan-su-dung-cay-thuoc-nam-an-toan",
+                    summary="Những nguyên tắc cốt lõi khi sử dụng thảo dược dân gian trong đời sống thường ngày.",
+                    content="Sử dụng cây thuốc Nam là phương pháp trị bệnh và chăm sóc sức khỏe lâu đời của người Việt. Tuy nhiên, việc sử dụng cần tuân thủ đúng liều lượng, đúng bộ phận và đúng đối tượng để tránh các tác dụng không mong muốn. Luôn tham khảo ý kiến chuyên gia y tế trước khi áp dụng bất kỳ bài thuốc nào.",
+                    image_url="https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=800&q=80",
+                    category="Hướng dẫn",
+                    author="Dược sĩ Nguyễn Văn A"
+                ),
+                Article(
+                    title="10 Cây thuốc Nam quen thuộc xung quanh vườn nhà",
+                    slug="10-cay-thuoc-nam-quen-thuoc-trong-vuon-nha",
+                    summary="Khám phá công dụng bất ngờ từ những loài cây dễ trồng như Đinh lăng, Ngải cứu, Hà thủ ô.",
+                    content="Nhiều loài cây mọc dại hoặc được trồng làm cảnh trong vườn nhà lại chứa đựng những giá trị dược liệu vô cùng quý giá. Bài viết tổng hợp 10 loại cây phổ biến và cách nhận biết, chế biến hiệu quả nhất.",
+                    image_url="https://images.unsplash.com/photo-1515586000433-45406d8e6662?auto=format&fit=crop&w=800&q=80",
+                    category="Khám phá",
+                    author="Ban biên tập Thực Vật Việt"
+                )
+            ]
+            db.add_all(sample_articles)
+            db.commit()
+    except Exception as e:
+        print(f"Warning in populate_plant_slugs_and_seeds: {e}")
+    finally:
+        db.close()
 
 
 DEFAULT_PACKAGES = [
@@ -216,18 +295,79 @@ def init_db():
     migrate_db()
     ensure_default_packages()
     ensure_default_settings()
+    populate_plant_slugs_and_seeds()
 
 class Plant(Base):
     __tablename__ = "plants"
     id = Column(Integer, primary_key=True, index=True)
     common_name = Column(String(255), index=True)
     scientific_name = Column(String(255))
-    family = Column(String(100))
+    family = Column(String(100), index=True)
     region = Column(String(100))
     image_url = Column(String(2048), nullable=True)
     description = Column(Text)
+    slug = Column(String(255), unique=True, index=True, nullable=True)
+    other_names = Column(Text, nullable=True)
+    used_parts = Column(Text, nullable=True)
+    chemical_components = Column(Text, nullable=True)
+    how_to_use = Column(Text, nullable=True)
+    precautions = Column(Text, nullable=True)
+    featured = Column(Boolean, default=False)
+    views_count = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
     tags = relationship("Tag", secondary="plant_tags", back_populates="plants")
-    details = relationship("PlantDetail", back_populates="plant")
+    details = relationship("PlantDetail", back_populates="plant", cascade="all, delete-orphan")
+    images = relationship("PlantImage", back_populates="plant", cascade="all, delete-orphan")
+    references = relationship("PlantReference", back_populates="plant", cascade="all, delete-orphan")
+
+class PlantImage(Base):
+    __tablename__ = "plant_images"
+    id = Column(Integer, primary_key=True, index=True)
+    plant_id = Column(Integer, ForeignKey("plants.id", ondelete="CASCADE"), nullable=False)
+    image_url = Column(String(2048), nullable=False)
+    caption = Column(String(255), nullable=True)
+    is_primary = Column(Boolean, default=False)
+    plant = relationship("Plant", back_populates="images")
+
+class PlantReference(Base):
+    __tablename__ = "plant_references"
+    id = Column(Integer, primary_key=True, index=True)
+    plant_id = Column(Integer, ForeignKey("plants.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(500), nullable=False)
+    url = Column(String(2048), nullable=True)
+    author_source = Column(String(255), nullable=True)
+    plant = relationship("Plant", back_populates="references")
+
+class UserFavorite(Base):
+    __tablename__ = "user_favorites"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    plant_id = Column(Integer, ForeignKey("plants.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    plant = relationship("Plant")
+
+class Article(Base):
+    __tablename__ = "articles"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False)
+    slug = Column(String(255), unique=True, index=True, nullable=False)
+    summary = Column(Text, nullable=True)
+    content = Column(Text, nullable=False)
+    image_url = Column(String(2048), nullable=True)
+    category = Column(String(100), default="Dược liệu")
+    author = Column(String(100), default="Ban biên tập Thực Vật Việt")
+    views_count = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+class SearchLog(Base):
+    __tablename__ = "search_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    query = Column(String(255), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 class Tag(Base):
     __tablename__ = "tags"
@@ -442,6 +582,20 @@ class TagResponse(BaseModel):
     category: str
     tag_name: str
 
+class PlantImageResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    image_url: str
+    caption: Optional[str] = None
+    is_primary: bool = False
+
+class PlantReferenceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    url: Optional[str] = None
+    author_source: Optional[str] = None
+
 class PlantCreate(BaseModel):
     common_name: str
     scientific_name: Optional[str] = None
@@ -449,6 +603,14 @@ class PlantCreate(BaseModel):
     region: Optional[str] = None
     image_url: Optional[str] = None
     description: Optional[str] = None
+    slug: Optional[str] = None
+    other_names: Optional[str] = None
+    used_parts: Optional[str] = None
+    chemical_components: Optional[str] = None
+    how_to_use: Optional[str] = None
+    precautions: Optional[str] = None
+    featured: Optional[bool] = False
+    tags: Optional[List[str]] = []
 
 class PlantDetailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -466,8 +628,19 @@ class PlantResponse(BaseModel):
     region: Optional[str] = None
     image_url: Optional[str] = None
     description: Optional[str] = None
+    slug: Optional[str] = None
+    other_names: Optional[str] = None
+    used_parts: Optional[str] = None
+    chemical_components: Optional[str] = None
+    how_to_use: Optional[str] = None
+    precautions: Optional[str] = None
+    featured: bool = False
+    views_count: int = 0
     tags: List[TagResponse] = []
     details: List[PlantDetailResponse] = []
+    images: List[PlantImageResponse] = []
+    references: List[PlantReferenceResponse] = []
+    is_favorite: Optional[bool] = False
 
 class PlantListResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -475,6 +648,37 @@ class PlantListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+class ArticleCreate(BaseModel):
+    title: str
+    summary: Optional[str] = None
+    content: str
+    image_url: Optional[str] = None
+    category: Optional[str] = "Dược liệu"
+    author: Optional[str] = "Ban biên tập Thực Vật Việt"
+
+class ArticleResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    slug: str
+    summary: Optional[str] = None
+    content: str
+    image_url: Optional[str] = None
+    category: str
+    author: str
+    views_count: int
+    created_at: datetime
+
+class ArticleListResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    items: List[ArticleResponse]
+    total: int
+    page: int
+    page_size: int
+
+class FavoriteSyncRequest(BaseModel):
+    plant_ids: List[int]
 
 class UserCreate(BaseModel):
     username: str

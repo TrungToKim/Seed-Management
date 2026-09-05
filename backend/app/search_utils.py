@@ -58,14 +58,16 @@ def match_score(query: str, target: str) -> float:
     return 0.0
 
 def score_plant(plant, query_str: str) -> float:
-    score_name = match_score(query_str, plant.common_name or "")
-    score_sci = match_score(query_str, plant.scientific_name or "")
+    score_name = match_score(query_str, getattr(plant, "common_name", "") or "")
+    score_sci = match_score(query_str, getattr(plant, "scientific_name", "") or "")
+    score_other = match_score(query_str, getattr(plant, "other_names", "") or "")
+    score_family = match_score(query_str, getattr(plant, "family", "") or "")
+    score_parts = match_score(query_str, getattr(plant, "used_parts", "") or "")
     
-    # Extract tag names
-    tag_names = " ".join([t.tag_name for t in plant.tags]) if getattr(plant, "tags", None) else ""
+    tag_names = " ".join([t.tag_name for t in getattr(plant, "tags", [])]) if getattr(plant, "tags", None) else ""
     score_tags = match_score(query_str, tag_names)
     
-    score_desc = match_score(query_str, plant.description or "")
+    score_desc = match_score(query_str, getattr(plant, "description", "") or "")
     
-    # Priority: common name > scientific name > tags > description
-    return (score_name * 2.0) + (score_sci * 1.5) + (score_tags * 1.0) + (score_desc * 0.5)
+    # Weightings: common_name > sci_name > other_names > family/parts/tags > description
+    return (score_name * 3.0) + (score_sci * 2.5) + (score_other * 2.0) + (score_family * 1.5) + (score_parts * 1.5) + (score_tags * 1.5) + (score_desc * 0.5)
