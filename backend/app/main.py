@@ -34,14 +34,21 @@ from app.search_utils import score_plant
 
 qa_chain = None
 
+import threading
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Apply migrations/settings and guarantee the protected primary admin exists.
-    try:
-        init_db()
-        ensure_primary_admin()
-    except Exception as e:
-        print(f"Warning: DB initialization warning during startup: {e}")
+    # Run DB initialization in a background thread so uvicorn binds the port IMMEDIATELY for Render port scanning
+    def _async_db_setup():
+        try:
+            print("Background DB setup started...")
+            init_db()
+            ensure_primary_admin()
+            print("Background DB setup completed successfully.")
+        except Exception as e:
+            print(f"Warning: DB initialization warning in background: {e}")
+
+    threading.Thread(target=_async_db_setup, daemon=True).start()
     yield
 
 app = FastAPI(
