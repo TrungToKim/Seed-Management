@@ -1,7 +1,21 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
-  Send, Bot, User, RefreshCw, Copy, ThumbsUp, ThumbsDown, Plus, Leaf, BookOpen, Search, Droplets, LogIn, UserPlus, Info, Menu, X,
+  Send,
+  Bot,
+  User,
+  RefreshCw,
+  Copy,
+  ThumbsUp,
+  ThumbsDown,
+  Plus,
+  Leaf,
+  BookOpen,
+  Search,
+  Droplets,
+  Info,
+  Menu,
+  X,
 } from "lucide-react";
 import { type ChatQuota, getToken, API_BASE } from "../api";
 import { useAuth } from "../useAuth";
@@ -17,9 +31,9 @@ interface Message {
 
 const SUGGESTED_PROMPTS = [
   { icon: Leaf, label: "Cây thuốc chữa bệnh", prompt: "Những cây thuốc dân gian Việt Nam chữa bệnh đường hô hấp?" },
-  { icon: BookOpen, label: "Tra cứu dược liệu", prompt: "Công dụng và bài thuốc của cây nhàu?" },
-  { icon: Search, label: "Cách sử dụng", prompt: "Cách sắc thuốc và liều dùng cây xạ đen?" },
-  { icon: Droplets, label: "Cây đặc hữu", prompt: "Những loại cây thuốc đặc hữu của Việt Nam là gì?" },
+  { icon: BookOpen, label: "Tra cứu dược liệu", prompt: "Công dụng và bài thuốc chữa dạ dày của cây nhàu?" },
+  { icon: Search, label: "Cách sử dụng", prompt: "Cách sắc thuốc và liều dùng của cây Đinh lăng?" },
+  { icon: Droplets, label: "Thảo dược thanh nhiệt", prompt: "Các loại cây thuốc thanh nhiệt giải độc phổ biến ở Việt Nam?" },
 ];
 
 export default function ChatBot() {
@@ -28,7 +42,7 @@ export default function ChatBot() {
     {
       id: "init",
       role: "assistant",
-      content: "Xin chào! Tôi là **Thực Vật Bot**, trợ lý AI tra cứu cây thuốc Việt Nam. Tôi có thể giúp bạn tra cứu công dụng, bài thuốc dân gian và cách sử dụng các loại cây thuốc.\n\nBạn muốn hỏi gì về cây thuốc hôm nay?",
+      content: "Xin chào! Tôi là **Thực Vật Bot**, trợ lý AI tra cứu cây thuốc Việt Nam. Tôi có thể giúp bạn tra cứu công dụng, tính vị, bài thuốc dân gian và cách sử dụng các loại dược liệu.\n\nBạn cần tra cứu cây thuốc nào hôm nay?",
       sources: [],
       timestamp: new Date(),
     },
@@ -38,13 +52,10 @@ export default function ChatBot() {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
   const [quota, setQuota] = useState<ChatQuota | null>(null);
-  
-  // Responsive sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // WebSocket states
   const [socketConnected, setSocketConnected] = useState(false);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const idCounter = useRef(0);
   const socketRef = useRef<WebSocket | null>(null);
 
@@ -61,13 +72,11 @@ export default function ChatBot() {
       const token = getToken();
       const wsUrl = `${wsProto}://${baseDomain}/api/chat/ws${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 
-      console.log("Connecting chat WebSocket to:", wsUrl);
       socket = new WebSocket(wsUrl);
       socketRef.current = socket;
 
       socket.onopen = () => {
         if (!active) return;
-        console.log("Chat WebSocket connected");
         setSocketConnected(true);
       };
 
@@ -105,13 +114,11 @@ export default function ChatBot() {
 
       socket.onclose = () => {
         if (!active) return;
-        console.log("Chat WebSocket disconnected, scheduling reconnect...");
         setSocketConnected(false);
         reconnectTimeout = setTimeout(connect, 3000);
       };
 
-      socket.onerror = (err) => {
-        console.error("Chat WebSocket error:", err);
+      socket.onerror = () => {
         socket?.close();
       };
     }
@@ -120,12 +127,8 @@ export default function ChatBot() {
 
     return () => {
       active = false;
-      if (socket) {
-        socket.close();
-      }
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-      }
+      if (socket) socket.close();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
       socketRef.current = null;
     };
   }, [user]);
@@ -138,26 +141,30 @@ export default function ChatBot() {
         const parsed = JSON.parse(stored) as string[];
         const hasMembership = !!user && user.role !== "customer";
         const historyLimit = hasMembership ? 10 : 5;
-        const trimmed = parsed.slice(0, historyLimit);
-        setSearchHistory(trimmed);
+        setSearchHistory(parsed.slice(0, historyLimit));
       } catch {
         setSearchHistory([]);
       }
     }
   }, [user]);
 
-  // Scroll to bottom on new messages
+  // Internal Container Auto-scroll (Scrolls ONLY internal chat box, never the outer window!)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
   }, [messages, loading]);
 
   async function send(text?: string) {
     const value = (text ?? input).trim();
     if (!value || loading) return;
     setInput("");
-    setSidebarOpen(false); // Close sidebar on mobile if clicked a search history item
+    setSidebarOpen(false);
 
-    // Save to search history
+    // Save search history
     const hasMembership = !!user && user.role !== "customer";
     const historyLimit = hasMembership ? 10 : 5;
     setSearchHistory((prev) => {
@@ -182,13 +189,13 @@ export default function ChatBot() {
         .filter((m) => m.role !== "assistant" || m.sources.length > 0 || m.id !== "init")
         .slice(-8)
         .map((m) => ({ role: m.role, content: m.content }));
-      
+
       socketRef.current.send(JSON.stringify({ query: value, history }));
     } else {
       const botMsg: Message = {
         id: `m${++idCounter.current}`,
         role: "assistant",
-        content: "Không có kết nối đến máy chủ. Đang chờ kết nối lại...",
+        content: "Không có kết nối đến máy chủ. Đang chờ tự động kết nối lại...",
         sources: [],
         timestamp: new Date(),
       };
@@ -221,7 +228,7 @@ export default function ChatBot() {
       {
         id: "init",
         role: "assistant",
-        content: "Xin chào! Tôi là **Thực Vật Bot**, trợ lý AI tra cứu cây thuốc Việt Nam. Tôi có thể giúp bạn tra cứu công dụng, bài thuốc dân gian và cách sử dụng các loại cây thuốc.\n\nBạn muốn hỏi gì về cây thuốc hôm nay?",
+        content: "Xin chào! Tôi là **Thực Vật Bot**, trợ lý AI tra cứu cây thuốc Việt Nam. Tôi có thể giúp bạn tra cứu công dụng, tính vị, bài thuốc dân gian và cách sử dụng các loại dược liệu.\n\nBạn cần tra cứu cây thuốc nào hôm nay?",
         sources: [],
         timestamp: new Date(),
       },
@@ -255,210 +262,195 @@ export default function ChatBot() {
   const guestExhausted = !user && !!quota && quota.limit > 0 && (quota.remaining ?? 0) <= 0;
 
   return (
-    <div className="flex h-full w-full overflow-hidden relative" style={{ background: "#faf5f0" }}>
+    <div className="flex h-full w-full bg-slate-50 overflow-hidden relative">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/45 md:hidden transition-opacity"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs md:hidden transition-opacity"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Matching Emerald Palette */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-60 flex-shrink-0 flex flex-col overflow-hidden transition-transform duration-300 transform md:relative md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-emerald-950 text-emerald-100 flex-shrink-0 flex flex-col overflow-hidden transition-transform duration-300 transform md:relative md:translate-x-0 border-r border-emerald-900/40 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
-        style={{ background: "#1c2e14", borderRight: "1px solid #2e4a24" }}
       >
-        <div className="p-4 flex items-center justify-between gap-2">
+        <div className="p-4 flex items-center justify-between gap-2 border-b border-emerald-900/50">
           <button
             onClick={newChat}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm transition-colors"
-            style={{ background: "#7ab648", color: "#fff", fontWeight: 700 }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#5e9a32")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "#7ab648")}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-xs shadow-md transition-all hover:scale-[1.02]"
           >
             <Plus className="w-4 h-4" />
-            Cuộc trò chuyện mới
+            <span>Hội thoại mới</span>
           </button>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="md:hidden p-2 rounded-lg text-[#8fae83] hover:text-white"
+            className="md:hidden p-2 rounded-xl text-emerald-300 hover:bg-emerald-900/50"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="px-4 pb-2">
-          <p className="text-xs uppercase tracking-widest" style={{ color: "#8fae83", fontWeight: 700 }}>Lịch sử tìm kiếm</p>
+        <div className="px-4 pt-4 pb-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Lịch sử tra cứu</p>
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-1">
           {searchHistory.map((query, index) => (
             <button
               key={index}
-              onClick={() => { setInput(query); send(query); }}
-              className="w-full text-left px-3 py-2 rounded-lg transition-colors group flex items-center gap-2"
-              style={{ background: "transparent" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#264a20")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              onClick={() => {
+                setInput(query);
+                send(query);
+              }}
+              className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-emerald-900/40 text-emerald-200/90 hover:text-white text-xs font-medium transition-colors flex items-center gap-2.5 truncate group"
             >
-              <Search className="w-3.5 h-3.5 text-[#8fae83] flex-shrink-0" />
-              <p className="text-sm truncate text-[#e6f2dd]" title={query}>{query}</p>
+              <Search className="w-3.5 h-3.5 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
+              <span className="truncate">{query}</span>
             </button>
           ))}
           {searchHistory.length === 0 && (
-            <p className="text-xs text-[#8fae83] px-3 py-2 italic">Chưa có lịch sử</p>
+            <p className="text-xs text-emerald-400/50 px-3 py-2 italic">Chưa có lịch sử câu hỏi</p>
           )}
         </div>
 
-        <div className="p-4 border-t" style={{ borderColor: "#2e4a24" }}>
+        {/* User Quota Info Footer */}
+        <div className="p-4 border-t border-emerald-900/60 bg-emerald-950/80">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#7ab648" }}>
-              <User className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+              {user ? user.username.charAt(0).toUpperCase() : <User className="w-4 h-4" />}
             </div>
             <div className="min-w-0">
-              <p className="text-sm truncate" style={{ color: "#e6f2dd", fontWeight: 600 }}>{user?.username || "Khách"}</p>
-              <p className="text-xs truncate" style={{ color: "#8fae83" }}>
+              <p className="text-xs font-bold text-white truncate">{user?.full_name || user?.username || "Khách ghé thăm"}</p>
+              <p className="text-[11px] text-emerald-300/80 truncate">
                 {user
-                  ? user.package_name || "Gói miễn phí"
-                  : `Khách · còn ${quota ? (quota.limit <= 0 ? "∞" : quota.remaining) : "…"} tin nhắn hôm nay`}
+                  ? user.package_name || "Thành viên"
+                  : `Khách: còn ${quota ? (quota.limit <= 0 ? "∞" : quota.remaining) : "…"} câu hỏi/ngày`}
               </p>
             </div>
           </div>
         </div>
       </aside>
 
-      {/* Main chat area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Chat header */}
-        <div
-          className="flex items-center justify-between px-4 sm:px-6 py-3 flex-shrink-0"
-          style={{ background: "#fff", borderBottom: "1px solid #e8e2da" }}
-        >
+      {/* Main Chat Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-white">
+        {/* Chat Header */}
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-slate-100 bg-white/90 backdrop-blur-md shrink-0 shadow-2xs">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 rounded-lg flex items-center justify-center border border-[#e8e2da] bg-white text-[#1c2e14] hover:bg-[#faf5f0]"
+              className="md:hidden p-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50"
             >
               <Menu className="w-4 h-4" />
             </button>
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #2d5a27 0%, #7ab648 100%)" }}
-            >
-              <Bot className="w-5 h-5 text-white" />
+
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+              <Bot className="w-5 h-5" />
             </div>
+
             <div>
-              <p style={{ color: "#1c2e14", fontWeight: 800, fontSize: 15 }}>Thực Vật Bot</p>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: socketConnected ? "#27ae60" : "#c0392b" }} />
-                <span style={{ color: "#888", fontSize: 12 }}>
-                  {socketConnected ? "Online" : "Mất kết nối..."} · Trợ lý cây thuốc Việt Nam
+              <div className="flex items-center gap-2">
+                <h2 className="font-extrabold text-slate-900 text-base">Thực Vật Bot</h2>
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase">
+                  AI RAG 3.1
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className={`w-2 h-2 rounded-full ${socketConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
+                <span className="text-xs text-slate-400 font-medium">
+                  {socketConnected ? "Sẵn sàng hỗ trợ" : "Đang kết nối lại..."} · Tư vấn Y học cổ truyền
                 </span>
               </div>
             </div>
           </div>
+
           <button
             onClick={newChat}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors"
-            style={{ color: "#888", border: "1px solid #e8e2da", background: "transparent" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#7ab648")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#888")}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-emerald-700 transition-colors"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Xóa hội thoại</span>
+            <span className="hidden sm:inline">Làm mới cuộc gọi</span>
           </button>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
+        {/* Scrollable Messages Box Container (Scrolled smoothly internally on send!) */}
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 scroll-smooth">
           {messages.map((msg) => (
-            <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+            <div key={msg.id} className={`flex gap-3.5 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
               {/* Avatar */}
-              <div className="flex-shrink-0 mt-1">
+              <div className="shrink-0 mt-1">
                 {msg.role === "assistant" ? (
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center"
-                    style={{ background: "linear-gradient(135deg, #2d5a27 0%, #7ab648 100%)" }}
-                  >
-                    <Bot className="w-4 h-4 text-white" />
+                  <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center shadow-xs">
+                    <Bot className="w-4 h-4" />
                   </div>
                 ) : (
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center"
-                    style={{ background: "#e8e2da" }}
-                  >
-                    <User className="w-4 h-4" style={{ color: "#666" }} />
+                  <div className="w-8 h-8 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center shadow-xs">
+                    <User className="w-4 h-4" />
                   </div>
                 )}
               </div>
 
-              {/* Bubble */}
-              <div className={`flex flex-col max-w-[85%] sm:max-w-[72%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
+              {/* Message Content Bubble */}
+              <div className={`flex flex-col max-w-[85%] sm:max-w-[75%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
                 <div
-                  className="px-4 py-3 rounded-2xl text-sm break-words"
-                  style={
+                  className={`p-4 rounded-2xl text-xs sm:text-sm leading-relaxed shadow-2xs ${
                     msg.role === "user"
-                      ? { background: "#2d5a27", color: "#fff", borderBottomRightRadius: 4 }
-                      : { background: "#fff", color: "#1c2e14", border: "1px solid #e8e2da", borderBottomLeftRadius: 4 }
-                  }
+                      ? "bg-emerald-700 text-white font-medium rounded-br-xs"
+                      : "bg-slate-50 border border-slate-200/80 text-slate-800 rounded-bl-xs"
+                  }`}
                 >
                   {msg.role === "assistant" ? renderMarkdown(msg.content) : <p>{msg.content}</p>}
                 </div>
 
-                {/* Sources */}
-                {msg.role === "assistant" && msg.sources.length > 0 && (
-                  <div className="mt-2 px-4 py-3 rounded-xl w-full" style={{ background: "#f5f0e8", border: "1px solid #e4ddd0" }}>
-                    <p className="text-xs mb-1.5" style={{ color: "#7ab648", fontWeight: 700 }}>📚 Nguồn tham khảo:</p>
-                    <ul className="text-xs space-y-1" style={{ color: "#5a6e52" }}>
-                      {msg.sources.map((source, index) => (
-                        <li key={index} className="flex items-start gap-1.5">
-                          <Leaf className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: "#7ab648" }} />
-                          {source}
+                {/* References / Sources Badge */}
+                {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
+                  <div className="mt-2.5 p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80 w-full text-xs space-y-1">
+                    <p className="font-bold text-emerald-900 flex items-center gap-1">
+                      <BookOpen className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>Nguồn tài liệu trích xuất:</span>
+                    </p>
+                    <ul className="space-y-0.5 text-emerald-800 text-[11px]">
+                      {msg.sources.map((src, i) => (
+                        <li key={i} className="flex items-center gap-1.5">
+                          <Leaf className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <span>{src}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
 
-                {/* Actions */}
+                {/* Message Action Items */}
                 {msg.role === "assistant" && (
-                  <div className="flex items-center gap-1 mt-1.5 px-1">
-                    <span className="text-xs mr-1" style={{ color: "#bbb" }}>
-                      {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </span>
+                  <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-slate-400 px-1">
+                    <span>{msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                     <button
                       onClick={() => copyMessage(msg.content, msg.id)}
-                      className="p-1 rounded transition-colors"
-                      style={{ color: copied === msg.id ? "#27ae60" : "#bbb" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = "#555")}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = copied === msg.id ? "#27ae60" : "#bbb")}
-                      title="Copy"
+                      className={`p-1 transition-colors ${copied === msg.id ? "text-emerald-600 font-bold" : "hover:text-emerald-700"}`}
+                      title={copied === msg.id ? "Đã sao chép" : "Sao chép câu trả lời"}
                     >
                       <Copy className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => toggleLike(msg.id, true)}
-                      className="p-1 rounded transition-colors"
-                      style={{ color: msg.liked === true ? "#2d5a27" : "#bbb" }}
-                      title="Phản hồi tốt"
+                      className={`p-1 transition-colors ${msg.liked === true ? "text-emerald-700" : "hover:text-slate-600"}`}
+                      title="Hữu ích"
                     >
                       <ThumbsUp className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => toggleLike(msg.id, false)}
-                      className="p-1 rounded transition-colors"
-                      style={{ color: msg.liked === false ? "#555" : "#bbb" }}
-                      title="Phản hồi chưa tốt"
+                      className={`p-1 transition-colors ${msg.liked === false ? "text-red-500" : "hover:text-slate-600"}`}
+                      title="Chưa chính xác"
                     >
                       <ThumbsDown className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 )}
                 {msg.role === "user" && (
-                  <span className="text-xs mt-1 px-1" style={{ color: "#bbb" }}>
+                  <span className="text-[11px] text-slate-400 mt-1 px-1">
                     {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 )}
@@ -466,106 +458,64 @@ export default function ChatBot() {
             </div>
           ))}
 
-          {/* Typing indicator */}
+          {/* Typing Loading Indicator */}
           {loading && (
-            <div className="flex gap-3">
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ background: "linear-gradient(135deg, #2d5a27 0%, #7ab648 100%)" }}
-              >
-                <Bot className="w-4 h-4 text-white" />
+            <div className="flex gap-3.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0">
+                <Bot className="w-4 h-4" />
               </div>
-              <div
-                className="px-4 py-3 rounded-2xl flex items-center gap-1"
-                style={{ background: "#fff", border: "1px solid #e8e2da", borderBottomLeftRadius: 4 }}
-              >
-                {[0, 1, 2].map((i) => (
-                  <span
-                    key={i}
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: "#7ab648", animation: "bounce 1.2s infinite", animationDelay: `${i * 0.2}s` }}
-                  />
-                ))}
+              <div className="p-3.5 rounded-2xl bg-slate-100 border border-slate-200 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-bounce" />
+                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-bounce [animation-delay:0.2s]" />
+                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-bounce [animation-delay:0.4s]" />
               </div>
             </div>
           )}
 
-          {/* Suggested prompts — only on first message */}
+          {/* Initial Prompt Suggestions */}
           {messages.length === 1 && !loading && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4">
               {SUGGESTED_PROMPTS.map((p) => {
                 const Icon = p.icon;
                 return (
                   <button
                     key={p.label}
                     onClick={() => send(p.prompt)}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-left text-sm transition-all"
-                    style={{ background: "#fff", border: "1px solid #e8e2da", color: "#333" }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "#7ab648";
-                      e.currentTarget.style.color = "#2d5a27";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "#e8e2da";
-                      e.currentTarget.style.color = "#333";
-                    }}
+                    className="flex items-center gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/80 hover:border-emerald-500 hover:bg-emerald-50/50 text-left text-xs font-semibold text-slate-700 hover:text-emerald-900 transition-all shadow-2xs group"
                   >
-                    <Icon className="w-4 h-4 flex-shrink-0" style={{ color: "#7ab648" }} />
-                    <span style={{ fontWeight: 600 }}>{p.label}</span>
+                    <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 group-hover:bg-emerald-100 transition-colors shrink-0">
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <span>{p.label}</span>
                   </button>
                 );
               })}
             </div>
           )}
-
-          <div ref={bottomRef} />
         </div>
 
-        {/* Input area */}
-        <div className="flex-shrink-0 px-4 sm:px-6 py-4" style={{ background: "#fff", borderTop: "1px solid #e8e2da" }}>
+        {/* Input Bar Area */}
+        <div className="p-4 sm:p-5 border-t border-slate-100 bg-white shrink-0 space-y-3">
           {!user && (
-            <div
-              className="flex flex-col lg:flex-row items-center justify-between gap-3 mb-3 px-4 py-2.5 rounded-xl"
-              style={{ background: "#eaf0e4", border: "1.5px dashed #a8c896" }}
-            >
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 font-medium">
               <div className="flex items-center gap-2">
-                <Info className="w-4 h-4 flex-shrink-0" style={{ color: "#7ab648" }} />
-                <p className="text-xs sm:text-sm" style={{ color: "#2d5a27", fontWeight: 600 }}>
-                  Bạn chưa đăng nhập — còn{" "}
-                  <span style={{ fontWeight: 800 }}>
-                    {quota ? (quota.limit <= 0 ? "∞" : quota.remaining) : "…"}
-                  </span>{" "}
-                  tin nhắn hôm nay. Đăng nhập để mở khoá giới hạn cao hơn theo gói.
-                </p>
+                <Info className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>
+                  Khách chưa đăng nhập: còn <strong>{quota ? (quota.limit <= 0 ? "∞" : quota.remaining) : "…"}</strong> câu hỏi hôm nay.
+                </span>
               </div>
-              <div className="flex gap-2 flex-shrink-0 w-full lg:w-auto justify-end">
-                <Link
-                  to="/login"
-                  className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs no-underline transition-all flex-1 lg:flex-initial"
-                  style={{ background: "#2d5a27", color: "#fff", fontWeight: 700 }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#1e3f1a")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "#2d5a27")}
-                >
-                  <LogIn className="w-3.5 h-3.5" /> Đăng nhập
+              <div className="flex items-center gap-2 shrink-0">
+                <Link to="/login" className="px-3 py-1 bg-emerald-700 text-white font-bold rounded-lg hover:bg-emerald-800">
+                  Đăng nhập
                 </Link>
-                <Link
-                  to="/register"
-                  className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs no-underline transition-all flex-1 lg:flex-initial"
-                  style={{ background: "#fff", color: "#2d5a27", fontWeight: 700, border: "1px solid #a8c896" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#d7e8cd")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
-                >
-                  <UserPlus className="w-3.5 h-3.5" /> Tạo tài khoản
+                <Link to="/register" className="px-3 py-1 bg-white border border-emerald-300 text-emerald-800 font-bold rounded-lg">
+                  Đăng ký
                 </Link>
               </div>
             </div>
           )}
-          <div
-            className="flex items-end gap-3 rounded-xl px-4 py-3"
-            style={{ background: "#faf5f0", border: "1.5px solid #e8e2da", transition: "border-color 0.15s" }}
-            onFocusCapture={(e) => (e.currentTarget.style.borderColor = "#7ab648")}
-            onBlurCapture={(e) => (e.currentTarget.style.borderColor = "#e8e2da")}
-          >
+
+          <div className="relative flex items-end gap-2 bg-slate-50 border border-slate-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 rounded-2xl p-2 transition-all">
             <textarea
               rows={1}
               value={input}
@@ -574,46 +524,32 @@ export default function ChatBot() {
               disabled={guestExhausted}
               placeholder={
                 guestExhausted
-                  ? "Bạn đã hết lượt chat hôm nay. Đăng nhập để tiếp tục trò chuyện."
-                  : "Hỏi Thực Vật Bot về cây thuốc, bài thuốc, cách sử dụng..."
+                  ? "Bạn đã dùng hết lượt chat hôm nay. Đăng nhập để tiếp tục."
+                  : "Nhập câu hỏi về cây thuốc, bài thuốc, cách dùng..."
               }
-              className="flex-1 resize-none bg-transparent text-sm focus:outline-none"
-              style={{ color: "#1c2e14", maxHeight: 140, lineHeight: 1.6, fontFamily: "'Nunito', system-ui, sans-serif" }}
+              className="flex-1 resize-none bg-transparent p-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none max-h-32"
               onInput={(e) => {
                 const el = e.currentTarget;
                 el.style.height = "auto";
-                el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+                el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
               }}
             />
             <button
               onClick={() => send()}
               disabled={!input.trim() || loading || guestExhausted}
-              className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-all"
-              style={{
-                background: input.trim() && !loading && !guestExhausted ? "#2d5a27" : "#e8e2da",
-                color: input.trim() && !loading && !guestExhausted ? "#fff" : "#bbb",
-              }}
+              className="p-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-30 text-white font-bold transition-all shadow-xs shrink-0"
+              aria-label="Gửi câu hỏi"
             >
               <Send className="w-4 h-4" />
             </button>
           </div>
-          {guestExhausted && (
-            <p className="text-center text-xs mt-2" style={{ color: "#c0392b", fontWeight: 700 }}>
-              Khách đã dùng hết lượt chat trong hôm nay — hãy đăng nhập để tiếp tục.
-            </p>
-          )}
-          <p className="text-center text-xs mt-2" style={{ color: "#bbb" }}>
-            Thực Vật Bot có thể mắc lỗi. Hãy kiểm chứng thông tin quan trọng với chuyên gia.
-          </p>
+
+          <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+            <span>Thông tin AI chỉ mang tính tham khảo y học cổ truyền.</span>
+            <span>Hỗ trợ bởi Google Gemini</span>
+          </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes bounce {
-          0%, 60%, 100% { transform: translateY(0); }
-          30% { transform: translateY(-6px); }
-        }
-      `}</style>
     </div>
   );
 }
