@@ -48,7 +48,6 @@ export default function Community() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ws, setWs] = useState<WebSocket | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
 
   const fetchStats = async () => {
     try {
@@ -121,11 +120,7 @@ export default function Community() {
       if (socket) socket.close();
     };
   }, []);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, sending]);
-
+  
   const send = () => {
     const value = input.trim();
     if (!value || sending) return;
@@ -253,7 +248,6 @@ export default function Community() {
                 </div>
               </div>
             )}
-            <div ref={bottomRef} />
           </div>
 
           {/* Input area */}
