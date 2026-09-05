@@ -179,42 +179,42 @@ export default function Community() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 h-[550px] sm:h-[640px]">
+      <div className="flex flex-col lg:flex-row gap-6 lg:h-[650px]">
         {/* Chat panel */}
-        <div className="flex-1 rounded-3xl overflow-hidden flex flex-col h-full min-h-0" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
+        <div className="flex-1 h-[540px] sm:h-[600px] lg:h-full rounded-3xl overflow-hidden flex flex-col min-h-0" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
           {/* Chat header */}
-          <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ background: "#faf5f0", borderBottom: "1px solid #e4ddd0" }}>
+          <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 flex-shrink-0" style={{ background: "#faf5f0", borderBottom: "1px solid #e4ddd0" }}>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #2d5a27 0%, #7ab648 100%)" }}>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, #2d5a27 0%, #7ab648 100%)" }}>
                 <MessagesSquare className="w-4 h-4 text-white" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p style={{ color: "#1c2e14", fontWeight: 800, fontSize: 15 }}>Kênh chia sẻ</p>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full" style={{ background: "#27ae60" }} />
-                  <span style={{ color: "#888", fontSize: 12 }}>{user ? `Đang đăng nhập với tài khoản ${user.username}` : "Đăng nhập để tham gia trao đổi"}</span>
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#27ae60" }} />
+                  <span className="truncate block" style={{ color: "#888", fontSize: 12 }}>{user ? `Tài khoản ${user.username}` : "Đăng nhập để tham gia trao đổi"}</span>
                 </div>
               </div>
             </div>
             <button
               onClick={() => { setLoading(true); fetchMessages(); }}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 sm:px-3 rounded-lg transition-colors flex-shrink-0"
               style={{ color: "#6b7c5e", background: "#fff", border: "1px solid #e4ddd0" }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "#7ab648")}
               onMouseLeave={(e) => (e.currentTarget.style.color = "#6b7c5e")}
             >
-              <RefreshCw className="w-3.5 h-3.5" /> Làm mới
+              <RefreshCw className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Làm mới</span>
             </button>
           </div>
 
           {error && (
-            <div className="px-6 py-3 flex items-center gap-2 text-sm" style={{ background: "#fdeeee", color: "#c0392b", fontWeight: 600 }}>
+            <div className="px-4 py-2.5 sm:px-6 sm:py-3 flex items-center gap-2 text-sm" style={{ background: "#fdeeee", color: "#c0392b", fontWeight: 600 }}>
               <Info className="w-4 h-4 flex-shrink-0" /> {error}
             </div>
           )}
 
           {/* Messages */}
-          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 space-y-4 sm:space-y-5">
             {loading ? (
               <div className="text-center py-16">
                 <p style={{ fontSize: 36 }}>💬</p>
@@ -226,19 +226,19 @@ export default function Community() {
                 <p style={{ color: "#6b7c5e", fontSize: 15, marginTop: 8 }}>Chưa có tin nhắn nào. Hãy bắt đầu cuộc trao đổi đầu tiên!</p>
               </div>
             ) : (
-              <div className="space-y-5">
+              <div className="space-y-4 sm:space-y-5">
                 {messages.map((msg) => (
                   <div key={msg.id} className="flex gap-3">
                     {/* Avatar */}
                     <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-sm"
+                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-xs sm:text-sm"
                       style={{ background: colorFor(msg.username) }}
                     >
                       {msg.username.slice(0, 1).toUpperCase()}
                     </div>
                     {/* Content */}
-                    <div className="min-w-0">
-                      <div className="flex items-baseline gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2 flex-wrap">
                         <span style={{ color: colorFor(msg.username), fontWeight: 800, fontSize: 14 }}>{msg.username}</span>
                         <span style={{ color: "#b7ad9d", fontSize: 11 }}>{formatTime(msg.created_at)}</span>
                       </div>
@@ -251,8 +251,8 @@ export default function Community() {
               </div>
             )}
             {sending && (
-              <div className="flex gap-3 mt-5 opacity-70">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#eaf0e4" }}>
+              <div className="flex gap-3 mt-4 opacity-70">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#eaf0e4" }}>
                   <Leaf className="w-4 h-4" style={{ color: "#7ab648" }} />
                 </div>
                 <div className="flex items-center gap-1 py-2">
@@ -265,7 +265,7 @@ export default function Community() {
           </div>
 
           {/* Input area */}
-          <div className="flex-shrink-0 px-6 py-4" style={{ background: "#fff", borderTop: "1px solid #e4ddd0" }}>
+          <div className="flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4" style={{ background: "#fff", borderTop: "1px solid #e4ddd0" }}>
             {user ? (
               <div
                 className="flex items-end gap-3 rounded-xl px-4 py-3"
