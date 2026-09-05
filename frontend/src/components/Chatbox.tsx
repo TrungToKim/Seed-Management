@@ -148,17 +148,23 @@ export default function ChatBot() {
     }
   }, [user]);
 
-  // Internal Container Auto-scroll (Scrolls ONLY internal chat box, never the outer window!)
+  // Internal Container Auto-scroll (Scrolls ONLY internal chat box, preserving outer window scroll position!)
   useEffect(() => {
     if (messagesContainerRef.current) {
+      const currentWinY = window.scrollY;
       messagesContainerRef.current.scrollTo({
         top: messagesContainerRef.current.scrollHeight,
         behavior: "smooth",
       });
+      window.scrollTo(0, currentWinY);
     }
   }, [messages, loading]);
 
-  async function send(text?: string) {
+  async function send(text?: string, e?: React.SyntheticEvent) {
+    if (e) {
+      e.preventDefault();
+    }
+    const windowY = window.scrollY;
     const value = (text ?? input).trim();
     if (!value || loading) return;
     setInput("");
@@ -184,6 +190,11 @@ export default function ChatBot() {
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
+    // Prevent window jump
+    setTimeout(() => {
+      window.scrollTo(0, windowY);
+    }, 10);
+
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       const history = messages
         .filter((m) => m.role !== "assistant" || m.sources.length > 0 || m.id !== "init")
@@ -207,7 +218,7 @@ export default function ChatBot() {
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      send();
+      send(undefined, e);
     }
   }
 
@@ -271,7 +282,7 @@ export default function ChatBot() {
         />
       )}
 
-      {/* Sidebar - Matching Emerald Palette */}
+      {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-emerald-950 text-emerald-100 flex-shrink-0 flex flex-col overflow-hidden transition-transform duration-300 transform md:relative md:translate-x-0 border-r border-emerald-900/40 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -301,9 +312,9 @@ export default function ChatBot() {
           {searchHistory.map((query, index) => (
             <button
               key={index}
-              onClick={() => {
+              onClick={(e) => {
                 setInput(query);
-                send(query);
+                send(query, e);
               }}
               className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-emerald-900/40 text-emerald-200/90 hover:text-white text-xs font-medium transition-colors flex items-center gap-2.5 truncate group"
             >
@@ -480,7 +491,7 @@ export default function ChatBot() {
                 return (
                   <button
                     key={p.label}
-                    onClick={() => send(p.prompt)}
+                    onClick={(e) => send(p.prompt, e)}
                     className="flex items-center gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/80 hover:border-emerald-500 hover:bg-emerald-50/50 text-left text-xs font-semibold text-slate-700 hover:text-emerald-900 transition-all shadow-2xs group"
                   >
                     <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 group-hover:bg-emerald-100 transition-colors shrink-0">
@@ -535,7 +546,7 @@ export default function ChatBot() {
               }}
             />
             <button
-              onClick={() => send()}
+              onClick={(e) => send(undefined, e)}
               disabled={!input.trim() || loading || guestExhausted}
               className="p-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-30 text-white font-bold transition-all shadow-xs shrink-0"
               aria-label="Gửi câu hỏi"
