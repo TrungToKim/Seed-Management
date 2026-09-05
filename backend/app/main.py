@@ -1,4 +1,11 @@
 import os
+import sys
+
+# Ensure backend directory is in sys.path so imports like 'from app....' work regardless of current working directory
+_backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
+
 from fastapi import FastAPI, HTTPException, Depends, Query, Header, Request, File, UploadFile, Form, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,8 +37,11 @@ qa_chain = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Apply migrations/settings and guarantee the protected primary admin exists.
-    init_db()
-    ensure_primary_admin()
+    try:
+        init_db()
+        ensure_primary_admin()
+    except Exception as e:
+        print(f"Warning: DB initialization warning during startup: {e}")
     yield
 
 app = FastAPI(
@@ -40,6 +50,14 @@ app = FastAPI(
     description="Trang web co ban de quan ly cay thuoc",
     version="1.0.0",
 )
+
+@app.get("/")
+def read_root():
+    return {"status": "ok", "message": "Thuc Vat Viet API is running"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
 
 # Base directory for reliable relative file paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -1,0 +1,15 @@
+fastapi==0.139.2
+uvicorn==0.51.0
+sqlalchemy==2.0.51
+psycopg2-binary==2.9.12
+pydantic==2.13.4
+python-dotenv>=1.0.0
+pgvector>=0.3.0
+google-genai>=2.0.0
+langchain-core>=1.5.0
+langchain-google-genai>=4.3.0
+langchain-community>=0.4.0
+langchain-classic>=1.0.8
+langchain-postgres>=0.0.17
+tiktoken
+python-multipart>=0.0.12
