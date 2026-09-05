@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { API_BASE, apiFetch, apiFetchRaw, getToken } from "../api";
 import { useAuth } from "../useAuth";
