@@ -32,7 +32,7 @@ export default function Chat() {
       </div>
 
       {/* Main Chatbox Frame */}
-      <div className="h-[calc(100vh-160px)] min-h-[500px] sm:h-[620px] rounded-3xl overflow-hidden border border-slate-200/80 shadow-md bg-white">
+      <div className="h-[calc(100dvh-160px)] min-h-[450px] sm:h-[620px] rounded-3xl overflow-hidden border border-slate-200/80 shadow-md bg-white">
         <ChatBot />
       </div>
 

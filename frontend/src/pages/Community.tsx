@@ -195,7 +195,7 @@ export default function Community() {
 
       <div className="flex flex-col lg:flex-row gap-6 lg:h-[650px]">
         {/* Chat panel */}
-        <div className="flex-1 h-[540px] sm:h-[600px] lg:h-full rounded-3xl overflow-hidden flex flex-col min-h-0" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
+        <div className="flex-1 h-[480px] sm:h-[580px] max-h-[calc(100dvh-220px)] min-h-[360px] lg:max-h-none lg:h-full rounded-3xl overflow-hidden flex flex-col min-h-0" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
           {/* Chat header */}
           <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 flex-shrink-0" style={{ background: "#faf5f0", borderBottom: "1px solid #e4ddd0" }}>
             <div className="flex items-center gap-3">
