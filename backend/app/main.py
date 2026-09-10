@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 
 # Ensure backend directory is in sys.path so imports like 'from app....' work regardless of current working directory
@@ -60,7 +61,7 @@ app = FastAPI(
 
 @app.get("/")
 def read_root():
-    return {"status": "ok", "message": "Thuc Vat Viet API is running"}
+    return {"status": "ok", "message": "Thuc Vat Viet API is running", "docs": "/docs"}
 
 @app.get("/health")
 def health_check():
@@ -110,10 +111,6 @@ def check_permission(permission: str):
             raise HTTPException(status_code=403, detail="Bạn không có quyền thực hiện hành động này")
         return user
     return dependency
-
-@app.get("/")
-def root():
-    return {"message": "Quan ly cay thuoc API", "docs": "/docs"}
 
 def get_chat_quota(user: Optional[User], db: Session, client_ip: Optional[str] = None) -> dict:
     """Return daily chat quota info for a (possibly anonymous) visitor."""
@@ -1007,7 +1004,7 @@ async def recognize_plant_image(
         )
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=os.getenv("GOOGLE_LLM_MODEL", "gemini-2.5-flash"),
             contents=[
                 types.Part.from_bytes(data=contents, mime_type=mime_type),
                 prompt
