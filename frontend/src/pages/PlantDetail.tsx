@@ -177,14 +177,15 @@ export default function PlantDetail() {
 
           <button
             onClick={handleToggleFavorite}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all shadow-xs ${
+            className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-full text-xs font-bold transition-all shadow-xs ${
               isFav
                 ? "bg-red-500 text-white hover:bg-red-600"
                 : "bg-white border border-slate-200 text-slate-700 hover:border-red-400 hover:text-red-500"
             }`}
           >
             <Heart className={`w-4 h-4 ${isFav ? "fill-current" : ""}`} />
-            <span>{isFav ? "Đã lưu cây" : "Lưu cây yêu thích"}</span>
+            <span className="hidden sm:inline">{isFav ? "Đã lưu cây" : "Lưu cây yêu thích"}</span>
+            <span className="sm:hidden">{isFav ? "Đã lưu" : "Lưu"}</span>
           </button>
         </div>
       </div>
@@ -210,7 +211,7 @@ export default function PlantDetail() {
 
           {/* Gallery Thumbnails */}
           {galleryImages.length > 1 && (
-            <div className="flex items-center gap-3 overflow-x-auto pb-2">
+            <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2">
               {galleryImages.map((img, idx) => (
                 <button
                   key={idx}
@@ -249,11 +250,11 @@ export default function PlantDetail() {
 
           {/* Quick Facts Grid */}
           <div className="grid grid-cols-2 gap-3 bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
-            <div className="p-3 bg-emerald-50/50 rounded-xl space-y-1">
+            <div className="p-3 bg-emerald-50/50 rounded-xl space-y-1 break-words">
               <span className="text-[11px] font-bold text-emerald-800 uppercase block">Bộ phận dùng</span>
               <p className="text-xs font-semibold text-slate-800">{plant.used_parts || "Toàn cây"}</p>
             </div>
-            <div className="p-3 bg-emerald-50/50 rounded-xl space-y-1">
+            <div className="p-3 bg-emerald-50/50 rounded-xl space-y-1 break-words">
               <span className="text-[11px] font-bold text-emerald-800 uppercase block">Khu vực phân bố</span>
               <p className="text-xs font-semibold text-slate-800">{plant.region || "Toàn quốc Việt Nam"}</p>
             </div>
@@ -291,7 +292,7 @@ export default function PlantDetail() {
       {/* Structured Content Tabs */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-100 overflow-x-auto">
+        <div className="flex border-b border-slate-100 overflow-x-auto no-scrollbar">
           {[
             { id: "overview", label: "Đặc điểm & Phân bố" },
             { id: "uses", label: "Công dụng & Chủ trị" },

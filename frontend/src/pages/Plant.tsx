@@ -455,12 +455,28 @@ export default function PlantPage() {
                 <select
                   value={usedPart}
                   onChange={(e) => updateFilter("used_part", e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-700 bg-slate-50/50"
                 >
                   <option value="">Tất cả bộ phận</option>
                   {filterOptions.used_parts.map((up) => (
                     <option key={up} value={up}>
                       {up}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 uppercase block mb-1.5">Khu vực phân bố</label>
+                <select
+                  value={region}
+                  onChange={(e) => updateFilter("region", e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-700 bg-slate-50/50"
+                >
+                  <option value="">Tất cả khu vực</option>
+                  {filterOptions.regions.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
                     </option>
                   ))}
                 </select>

@@ -175,36 +175,36 @@ export default function Account() {
       <div className="grid lg:grid-cols-4 gap-8">
         {/* Sidebar */}
         <aside className="lg:col-span-1">
-          <div className="sticky top-24 rounded-3xl p-6" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
+          <div className="sticky top-24 rounded-3xl p-5 sm:p-6" style={{ background: "#fff", border: "1.5px solid #e4ddd0" }}>
             <div className="flex items-center gap-4 mb-6">
               {profile.avatar_url ? (
                 <img
                   src={getAvatarUrl(profile.avatar_url)}
                   alt="Avatar"
-                  className="w-20 h-20 rounded-full object-cover flex-shrink-0"
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover flex-shrink-0"
                 />
               ) : (
-                <div className="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold text-white flex-shrink-0" style={{ background: "#7ab648" }}>
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-xl sm:text-2xl font-bold text-white flex-shrink-0" style={{ background: "#7ab648" }}>
                   {(profile.full_name || user.username).slice(0, 1).toUpperCase()}
                 </div>
               )}
               <div className="min-w-0">
-                <p className="font-bold text-lg truncate" style={{ color: "#1c2e14" }}>{user.username}</p>
-                <p className="text-sm" style={{ color: "#6b7c5e" }}>{user.email}</p>
+                <p className="font-bold text-base sm:text-lg truncate" style={{ color: "#1c2e14" }}>{user.username}</p>
+                <p className="text-xs sm:text-sm truncate" style={{ color: "#6b7c5e" }}>{user.email}</p>
                 <p className="text-xs mt-1 px-2 py-0.5 rounded-full inline-block" style={{ background: user.is_admin ? "#fef3c7" : "#eaf0e4", color: user.is_admin ? "#92400e" : "#2d5a27" }}>
                   {user.role === "administrator" ? "Quản trị viên" : user.role === "help" ? "Hỗ trợ" : "Thành viên"}
                 </p>
               </div>
             </div>
-            <nav className="space-y-1">
+            <nav className="flex overflow-x-auto no-scrollbar gap-2 pb-2 lg:pb-0 lg:flex-col lg:space-y-1 lg:gap-0">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all ${
+                  className={`flex items-center gap-2.5 px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm transition-all whitespace-nowrap flex-shrink-0 ${
                     activeTab === tab.id
-                      ? "text-white"
-                      : ""
+                      ? "text-white font-bold"
+                      : "hover:bg-slate-50"
                   }`}
                   style={{
                     background: activeTab === tab.id ? "#2d5a27" : "transparent",
@@ -219,7 +219,7 @@ export default function Account() {
             </nav>
             <button
               onClick={handleLogout}
-              className="w-full mt-6 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-colors"
+              className="w-full mt-4 lg:mt-6 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm transition-colors"
               style={{ background: "#fff", color: "#c0392b", fontWeight: 600, border: "1.5px solid #fecaca" }}
               onMouseEnter={(e) => (e.currentTarget.style.background = "#fef2f2")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}

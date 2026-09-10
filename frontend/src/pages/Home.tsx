@@ -175,13 +175,13 @@ export default function Home() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onFocus={() => setShowSuggestions(suggestions.length > 0)}
-                placeholder="Nhập tên tiếng Việt (vd: Đinh lăng, Ngải cứu), tên khoa học, công dụng..."
-                className="w-full pl-12 pr-28 py-4 rounded-2xl bg-white text-slate-800 placeholder-slate-400 text-sm md:text-base font-medium shadow-2xl focus:outline-none focus:ring-4 focus:ring-emerald-400/40 border-0"
+                placeholder="Nhập tên cây (vd: Đinh lăng, Ngải cứu), tên khoa học..."
+                className="w-full pl-10 sm:pl-12 pr-24 sm:pr-28 py-3.5 sm:py-4 rounded-2xl bg-white text-slate-800 placeholder-slate-400 text-xs sm:text-base font-medium shadow-2xl focus:outline-none focus:ring-4 focus:ring-emerald-400/40 border-0"
               />
-              <Search className="absolute left-4 w-5 h-5 text-emerald-700 pointer-events-none" />
+              <Search className="absolute left-3.5 sm:left-4 w-4 sm:w-5 h-4 sm:h-5 text-emerald-700 pointer-events-none" />
               <button
                 type="submit"
-                className="absolute right-2 px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs md:text-sm rounded-xl shadow-md transition-all hover:scale-105"
+                className="absolute right-1.5 sm:right-2 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs md:text-sm rounded-xl shadow-md transition-all hover:scale-105"
               >
                 Tra cứu
               </button>
@@ -327,7 +327,7 @@ export default function Home() {
         </section>
 
         {/* Section 3: AI Feature Callout Banner */}
-        <section className="relative bg-gradient-to-r from-teal-900 to-emerald-950 rounded-3xl p-8 md:p-12 text-white overflow-hidden shadow-xl">
+        <section className="relative bg-gradient-to-r from-teal-900 to-emerald-950 rounded-3xl p-6 sm:p-8 md:p-12 text-white overflow-hidden shadow-xl">
           <div className="relative z-10 max-w-2xl space-y-4">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold">
               <Camera className="w-4 h-4" />

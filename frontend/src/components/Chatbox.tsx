@@ -404,7 +404,7 @@ export default function ChatBot() {
               </div>
 
               {/* Message Content Bubble */}
-              <div className={`flex flex-col max-w-[85%] sm:max-w-[75%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
+              <div className={`flex flex-col max-w-[90%] sm:max-w-[78%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
                 <div
                   className={`p-4 rounded-2xl text-xs sm:text-sm leading-relaxed shadow-2xs ${
                     msg.role === "user"

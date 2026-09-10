@@ -29,27 +29,27 @@ export default function Login() {
   };
 
   return (
-    <div className="flex items-center justify-center px-4 py-16" style={{ minHeight: "calc(100vh - 73px)", background: "#f5f0e8" }}>
+    <div className="flex items-center justify-center px-4 py-8 sm:py-16" style={{ minHeight: "calc(100vh - 73px)", background: "#f5f0e8" }}>
       <div className="w-full max-w-md">
         <div
           className="rounded-3xl overflow-hidden"
           style={{ background: "#fff", border: "1.5px solid #e4ddd0", boxShadow: "0 16px 48px rgba(45,90,39,0.1)" }}
         >
           {/* Header band */}
-          <div className="relative px-8 py-8 text-center overflow-hidden" style={{ background: "linear-gradient(135deg, #1c2e14 0%, #2d5a27 55%, #7ab648 100%)" }}>
-            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center mb-4" style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)" }}>
-              <Leaf className="w-7 h-7 text-white" />
+          <div className="relative px-6 py-6 sm:px-8 sm:py-8 text-center overflow-hidden" style={{ background: "linear-gradient(135deg, #1c2e14 0%, #2d5a27 55%, #7ab648 100%)" }}>
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl mx-auto flex items-center justify-center mb-3 sm:mb-4" style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)" }}>
+              <Leaf className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
             </div>
-            <h1 style={{ fontFamily: FS, fontSize: 26, fontWeight: 700, color: "#fff", marginBottom: 6 }}>
+            <h1 style={{ fontFamily: FS, fontSize: 24, fontWeight: 700, color: "#fff", marginBottom: 6 }}>
               Đăng Nhập
             </h1>
-            <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 14 }}>
+            <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 13 }}>
               Chào mừng quay trở lại với cộng đồng cây thuốc
             </p>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="px-8 py-8">
+          <form onSubmit={handleSubmit} className="px-5 py-6 sm:px-8 sm:py-8">
             {error && (
               <div className="px-4 py-3 rounded-xl text-sm mb-5" style={{ background: "#fdeeee", color: "#c0392b", fontWeight: 600 }}>
                 {error}

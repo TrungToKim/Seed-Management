@@ -157,7 +157,7 @@ export default function AIRecognitionPage() {
             <div className="space-y-6">
               {/* Primary Candidate Card */}
               <div className="p-6 bg-emerald-50/80 border border-emerald-200 rounded-2xl space-y-3">
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                   <div>
                     <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider bg-emerald-100 px-2.5 py-0.5 rounded-full">
                       Khả nghi cao nhất ({result.primary_candidate.confidence_percent}%)
@@ -175,7 +175,7 @@ export default function AIRecognitionPage() {
                   {result.primary_candidate.db_plant_slug && (
                     <Link
                       to={`/plants/${result.primary_candidate.db_plant_slug}`}
-                      className="inline-flex items-center gap-1 px-4 py-2 bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs hover:bg-emerald-800"
+                      className="inline-flex items-center justify-center gap-1 px-4 py-2.5 bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs hover:bg-emerald-800 self-start sm:self-auto"
                     >
                       <span>Xem hồ sơ cây</span>
                       <ChevronRight className="w-4 h-4" />

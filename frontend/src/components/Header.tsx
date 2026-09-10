@@ -59,10 +59,10 @@ export const Header: React.FC = () => {
               <Leaf className="w-6 h-6" />
             </div>
             <div>
-              <span className="font-extrabold text-xl md:text-2xl text-emerald-950 tracking-tight block leading-none">
+              <span className="font-extrabold text-lg sm:text-xl md:text-2xl text-emerald-950 tracking-tight block leading-none">
                 THỰC VẬT VIỆT
               </span>
-              <span className="text-[10px] text-emerald-600 font-semibold tracking-wider uppercase block mt-0.5">
+              <span className="text-[9px] sm:text-[10px] text-emerald-600 font-semibold tracking-wider uppercase block mt-0.5">
                 Cơ sở dữ liệu dược liệu
               </span>
             </div>
@@ -225,7 +225,14 @@ export const Header: React.FC = () => {
                   : "text-slate-700 hover:bg-slate-50"
               }`}
             >
-              <span>{link.label}</span>
+              <div className="flex items-center gap-2">
+                <span>{link.label}</span>
+                {link.badge && (
+                  <span className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full uppercase">
+                    {link.badge}
+                  </span>
+                )}
+              </div>
               {link.count !== undefined && link.count > 0 && (
                 <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                   {link.count}
@@ -237,33 +244,66 @@ export const Header: React.FC = () => {
           <div className="pt-4 border-t border-slate-100">
             {user ? (
               <div className="space-y-2">
-                <div className="flex items-center gap-3 px-4 py-2">
-                  <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm">
-                    {user.username.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{user.full_name || user.username}</p>
-                    <p className="text-xs text-slate-400">{user.email}</p>
+                <div className="flex items-center gap-3 px-4 py-2.5 bg-slate-50 rounded-xl">
+                  {user.avatar_url ? (
+                    <img
+                      src={getAvatarUrl(user.avatar_url)}
+                      alt={user.username}
+                      className="w-10 h-10 rounded-full object-cover border border-emerald-500"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm">
+                      {user.username.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{user.full_name || user.username}</p>
+                    <p className="text-xs text-slate-400 truncate">{user.email}</p>
+                    <span className="inline-block mt-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      {user.role === "administrator" ? "Quản trị viên" : user.package_name || "Thành viên"}
+                    </span>
                   </div>
                 </div>
+
+                <Link
+                  to="/account"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-xl"
+                >
+                  <UserIcon className="w-4 h-4 text-emerald-600" />
+                  <span>Hồ sơ tài khoản</span>
+                </Link>
+
+                <Link
+                  to="/packages"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-xl"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>Gói dịch vụ</span>
+                </Link>
+
                 {(user.is_admin || user.role === "administrator") && (
                   <Link
                     to="/admin"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="block px-4 py-2.5 text-sm font-semibold text-purple-700 bg-purple-50 rounded-xl"
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-purple-700 bg-purple-50 rounded-xl"
                   >
-                    Quản trị Admin
+                    <Shield className="w-4 h-4 text-purple-600" />
+                    <span>Quản trị Admin</span>
                   </Link>
                 )}
+
                 <button
                   onClick={() => {
                     logout();
                     setMobileMenuOpen(false);
                     navigate("/");
                   }}
-                  className="w-full text-left px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-xl"
+                  className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-xl"
                 >
-                  Đăng xuất
+                  <LogOut className="w-4 h-4 text-red-500" />
+                  <span>Đăng xuất</span>
                 </button>
               </div>
             ) : (

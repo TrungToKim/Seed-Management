@@ -104,12 +104,12 @@ export default function Packages() {
         </p>
 
         {/* Duration Selection Tabs */}
-        <div className="inline-flex rounded-xl p-1.5" style={{ background: "#eaf0e4", border: "1.5px solid #d7e8cd" }}>
+        <div className="flex overflow-x-auto no-scrollbar max-w-full justify-start sm:justify-center p-1.5 rounded-xl border border-[#d7e8cd] bg-[#eaf0e4]">
           {(["Free", "1", "3", "6", "12"] as DurationType[]).map((dur) => (
             <button
               key={dur}
               onClick={() => setDuration(dur)}
-              className="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+              className="px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold whitespace-nowrap transition-all flex-shrink-0"
               style={{
                 background: duration === dur ? "#2d5a27" : "transparent",
                 color: duration === dur ? "#fff" : "#3d5c35",
@@ -311,39 +311,39 @@ export default function Packages() {
                     {/* Payment Method Selector */}
                     <div>
                       <p className="text-xs uppercase tracking-wider mb-2 font-bold text-[#3d5c35]">Phương thức thanh toán</p>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <button
                           onClick={() => setPaymentMethod("qr")}
-                          className="flex flex-col items-center gap-1.5 p-3 rounded-xl border text-xs font-bold transition-all"
+                          className="flex sm:flex-col items-center justify-center gap-1.5 p-3 rounded-xl border text-xs font-bold transition-all"
                           style={{
                             background: paymentMethod === "qr" ? "#eaf0e4" : "#fff",
                             borderColor: paymentMethod === "qr" ? "#7ab648" : "#e4ddd0",
                             color: paymentMethod === "qr" ? "#2d5a27" : "#6b7c5e",
                           }}
                         >
-                          <QrCode className="w-5 h-5" /> QR Code / MoMo
+                          <QrCode className="w-5 h-5 flex-shrink-0" /> <span>QR Code / MoMo</span>
                         </button>
                         <button
                           onClick={() => setPaymentMethod("bank")}
-                          className="flex flex-col items-center gap-1.5 p-3 rounded-xl border text-xs font-bold transition-all"
+                          className="flex sm:flex-col items-center justify-center gap-1.5 p-3 rounded-xl border text-xs font-bold transition-all"
                           style={{
                             background: paymentMethod === "bank" ? "#eaf0e4" : "#fff",
                             borderColor: paymentMethod === "bank" ? "#7ab648" : "#e4ddd0",
                             color: paymentMethod === "bank" ? "#2d5a27" : "#6b7c5e",
                           }}
                         >
-                          <Landmark className="w-5 h-5" /> Ngân hàng
+                          <Landmark className="w-5 h-5 flex-shrink-0" /> <span>Ngân hàng</span>
                         </button>
                         <button
                           onClick={() => setPaymentMethod("card")}
-                          className="flex flex-col items-center gap-1.5 p-3 rounded-xl border text-xs font-bold transition-all"
+                          className="flex sm:flex-col items-center justify-center gap-1.5 p-3 rounded-xl border text-xs font-bold transition-all"
                           style={{
                             background: paymentMethod === "card" ? "#eaf0e4" : "#fff",
                             borderColor: paymentMethod === "card" ? "#7ab648" : "#e4ddd0",
                             color: paymentMethod === "card" ? "#2d5a27" : "#6b7c5e",
                           }}
                         >
-                          <CreditCard className="w-5 h-5" /> Thẻ Quốc tế
+                          <CreditCard className="w-5 h-5 flex-shrink-0" /> <span>Thẻ Quốc tế</span>
                         </button>
                       </div>
                     </div>
